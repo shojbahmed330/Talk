@@ -11,12 +11,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Dialpad // Changed from Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable // Added import
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +24,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+// Import cardBg if it's defined in Color.kt in this package, or ensure it's passed if not.
+// Assuming it's available via wildcard import com.example.realtimecalltranslation.ui.theme.*
+// If not, specific import: import com.example.realtimecalltranslation.ui.theme.cardBg
 
 @Composable
 fun CallHistoryScreen(
@@ -39,9 +42,10 @@ fun CallHistoryScreen(
     mainWhite: Color,
     accentRed: Color,
     lightRed: Color
+    // cardBg is now directly used from theme import
 ) {
     var search by remember { mutableStateOf("") }
-    var activeTab by rememberSaveable { mutableStateOf(CallType.INCOMING) } // Changed to rememberSaveable
+    var activeTab by rememberSaveable { mutableStateOf(CallType.INCOMING) }
 
     val filteredLogs = callLogs
         .filter { it.callType == activeTab || (it.isMissed && activeTab == CallType.MISSED) }
@@ -56,15 +60,10 @@ fun CallHistoryScreen(
         .take(6)
         .map { it.user }
 
-    val navIconSelected = navIconSelected
-    val navIconUnselected = navIconUnselected
-    val cardBg = cardBg
-
     Column(
         Modifier
             .fillMaxSize()
             .background(mainWhite)
-            .padding(horizontal = 0.dp, vertical = 0.dp)
     ) {
         // Top AppBar
         Surface(
@@ -83,8 +82,7 @@ fun CallHistoryScreen(
                     "Call History",
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
-                    color = mainWhite,
-                    modifier = Modifier
+                    color = mainWhite
                 )
             }
         }
@@ -123,7 +121,6 @@ fun CallHistoryScreen(
                         UserAvatar(
                             user = user,
                             size = 48.dp,
-                            color = mainRed,
                             modifier = Modifier
                                 .border(2.dp, mainRed, CircleShape)
                                 .clickable { onUserAvatar(user) }
@@ -187,8 +184,8 @@ fun CallHistoryScreen(
         ) {
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 0.dp, vertical = 4.dp)
+                    .fillMaxSize()
+                    .padding(vertical = 4.dp)
             ) {
                 items(filteredLogs) { log ->
                     CallLogRow(
@@ -198,7 +195,7 @@ fun CallHistoryScreen(
                         mainRed = mainRed,
                         accentRed = accentRed,
                         lightRed = lightRed,
-                        cardBg = cardBg
+                        cardBg = mainWhite
                     )
                 }
             }
@@ -206,7 +203,8 @@ fun CallHistoryScreen(
 
         Surface(
             shadowElevation = 8.dp,
-            color = mainWhite
+            color = cardBg, // Changed background for the bottom navigation bar surface
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
@@ -220,19 +218,19 @@ fun CallHistoryScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .background(
-                            if (selectedNav == 2) mainRed else mainWhite, // Updated
+                            if (selectedNav == 2) mainRed else mainWhite,
                             CircleShape
                         )
                         .border(
                             width = if (selectedNav == 2) 2.dp else 1.dp,
-                            color = if (selectedNav == 2) mainWhite else lightRed, // Updated
+                            color = if (selectedNav == 2) mainWhite else lightRed,
                             shape = CircleShape
                         )
                 ) {
                     Icon(
                         Icons.Filled.Person,
                         contentDescription = "Contacts",
-                        tint = if (selectedNav == 2) mainWhite else accentRed, // Updated
+                        tint = if (selectedNav == 2) mainWhite else accentRed,
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -241,19 +239,19 @@ fun CallHistoryScreen(
                     modifier = Modifier
                         .size(64.dp)
                         .background(
-                            if (selectedNav == 1) mainRed else mainWhite, // Updated
+                            if (selectedNav == 1) mainRed else mainWhite,
                             CircleShape
                         )
                         .border(
-                            width = 3.dp, // Kept original logic for width
-                            color = if (selectedNav == 1) mainWhite else lightRed, // Updated
+                            width = if (selectedNav == 1) 2.dp else 1.dp,
+                            color = if (selectedNav == 1) mainWhite else lightRed,
                             shape = CircleShape
                         )
                 ) {
                     Icon(
-                        Icons.Filled.Add,
-                        contentDescription = "Dialer",
-                        tint = if (selectedNav == 1) mainWhite else accentRed, // Updated
+                        Icons.Filled.Dialpad,
+                        contentDescription = "Dialpad",
+                        tint = if (selectedNav == 1) mainWhite else accentRed,
                         modifier = Modifier.size(36.dp)
                     )
                 }
@@ -262,19 +260,19 @@ fun CallHistoryScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .background(
-                            if (selectedNav == 0) mainRed else mainWhite, // Updated
+                            if (selectedNav == 0) mainRed else mainWhite,
                             CircleShape
                         )
                         .border(
                             width = if (selectedNav == 0) 2.dp else 1.dp,
-                            color = if (selectedNav == 0) mainWhite else lightRed, // Updated
+                            color = if (selectedNav == 0) mainWhite else lightRed,
                             shape = CircleShape
                         )
                 ) {
                     Icon(
                         Icons.Filled.Star,
                         contentDescription = "Favourites",
-                        tint = if (selectedNav == 0) mainWhite else accentRed, // Updated
+                        tint = if (selectedNav == 0) mainWhite else accentRed,
                         modifier = Modifier.size(30.dp)
                     )
                 }
