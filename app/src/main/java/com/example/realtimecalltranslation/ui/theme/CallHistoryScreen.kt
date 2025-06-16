@@ -150,7 +150,7 @@ fun CallHistoryScreen(
                 mainWhite = mainWhite,
                 accentRed = accentRed,
                 lightRed = lightRed,
-                modifier = Modifier.width(110.dp)
+                modifier = Modifier.width(125.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             FilterTab(
@@ -161,7 +161,7 @@ fun CallHistoryScreen(
                 mainWhite = mainWhite,
                 accentRed = accentRed,
                 lightRed = lightRed,
-                modifier = Modifier.width(110.dp)
+                modifier = Modifier.width(125.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             FilterTab(
@@ -172,7 +172,7 @@ fun CallHistoryScreen(
                 mainWhite = mainWhite,
                 accentRed = accentRed,
                 lightRed = lightRed,
-                modifier = Modifier.width(110.dp)
+                modifier = Modifier.width(125.dp)
             )
         }
 

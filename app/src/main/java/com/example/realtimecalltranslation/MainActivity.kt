@@ -47,6 +47,10 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 var callHistoryRecomposeKey by remember { mutableStateOf(0) }
 
+                var numberToLog by remember { mutableStateOf<String?>(null) }
+                var userToLog by remember { mutableStateOf<User?>(null) }
+                var callStartTimeForLog by remember { mutableStateOf(0L) }
+
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
@@ -88,11 +92,11 @@ class MainActivity : ComponentActivity() {
                     User("5", "Maa GP", "015XXXXXXXX", "https://randomuser.me/api/portraits/women/26.jpg")
                 )
                 val demoCallLogs = listOf(
-                    CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "12 min ago"),
-                    CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "10 min ago"),
-                    CallLog(demoUsers[2], "Hello!", CallType.OUTGOING, false, "8 min ago"),
-                    CallLog(demoUsers[3], "Test call", CallType.INCOMING, false, "5 min ago"),
-                    CallLog(demoUsers[4], "Another call", CallType.OUTGOING, false, "2 min ago")
+                    CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "28 Oct 2023, 09:15 AM"),
+                    CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "28 Oct 2023, 09:12 AM"),
+                    CallLog(demoUsers[2], "Hello!", CallType.OUTGOING, false, "27 Oct 2023, 05:30 PM"),
+                    CallLog(demoUsers[3], "Test call", CallType.INCOMING, false, "27 Oct 2023, 02:00 PM"),
+                    CallLog(demoUsers[4], "Another call", CallType.OUTGOING, false, "26 Oct 2023, 11:00 AM")
                 )
 
                 // val context = LocalContext.current // Commented out as localContext is defined above
@@ -137,6 +141,9 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("profile/${user.id}")
                             },
                             onCall = { user ->
+                                numberToLog = user.phone
+                                userToLog = user
+                                callStartTimeForLog = System.currentTimeMillis()
                                 navController.navigate("call/${user.phone}")
                             },
                             onUserAvatar = { user ->
@@ -202,7 +209,12 @@ class MainActivity : ComponentActivity() {
                             onClose = { navController.popBackStack() },
                             mainRed = mainRed,
                             mainWhite = mainWhite,
-                            onNavigateToCall = { number -> navController.navigate("call/$number") }
+                            onNavigateToCall = { number ->
+                                numberToLog = number
+                                userToLog = usersToDisplay.find { it.phone == number }
+                                callStartTimeForLog = System.currentTimeMillis()
+                                navController.navigate("call/$number")
+                            }
                         )
                     }
                     composable(
@@ -224,6 +236,34 @@ class MainActivity : ComponentActivity() {
                             messages = emptyList(),
                             onCallEnd = {
                                 navController.popBackStack()
+
+                                if (numberToLog != null) {
+                                    val callTime = callStartTimeForLog
+                                    val callTimeFormatted = android.text.format.DateFormat.format(
+                                        "dd MMM yyyy, h:mm a",
+                                        callTime
+                                    ).toString()
+
+                                    val resolvedUser = userToLog?.takeIf { it.phone == numberToLog } ?: User(
+                                        id = numberToLog!!,
+                                        name = numberToLog!!,
+                                        phone = numberToLog!!,
+                                        profilePicUrl = null
+                                    )
+
+                                    val newCallLogEntry = CallLog(
+                                        user = resolvedUser,
+                                        message = "App Call",
+                                        callType = CallType.OUTGOING,
+                                        isMissed = false,
+                                        time = callTimeFormatted
+                                    )
+                                    callLogsFromSource = listOf(newCallLogEntry) + callLogsFromSource
+
+                                    numberToLog = null
+                                    userToLog = null
+                                    callStartTimeForLog = 0L
+                                }
                                 // callHistoryRecomposeKey++ // This line should remain commented out or removed
                             },
                             onToggleLoudspeaker = { /* TODO: Implement loudspeaker logic */ },
