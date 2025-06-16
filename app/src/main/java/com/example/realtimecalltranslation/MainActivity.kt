@@ -178,7 +178,12 @@ class MainActivity : ComponentActivity() {
                     composable("contacts") {
                         ContactsScreen(
                             onBack = { navController.popBackStack() },
-                            onCallContact = { number -> navController.navigate("call/$number") },
+                            onCallContact = { number ->
+                                numberToLog = number
+                                userToLog = usersToDisplay.find { it.phone == number }
+                                callStartTimeForLog = System.currentTimeMillis()
+                                navController.navigate("call/$number")
+                            },
                             mainRed = mainRed,
                             accentRed = accentRed,
                             mainWhite = mainWhite,
