@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable // Added import
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,7 +41,7 @@ fun CallHistoryScreen(
     lightRed: Color
 ) {
     var search by remember { mutableStateOf("") }
-    var activeTab by remember { mutableStateOf(CallType.INCOMING) }
+    var activeTab by rememberSaveable { mutableStateOf(CallType.INCOMING) } // Changed to rememberSaveable
 
     val filteredLogs = callLogs
         .filter { it.callType == activeTab || (it.isMissed && activeTab == CallType.MISSED) }
