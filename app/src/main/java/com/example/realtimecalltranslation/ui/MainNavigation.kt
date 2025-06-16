@@ -76,10 +76,6 @@ fun MainNavigation(
                     )
                     currentScreen = "call"
                 },
-                onAddNew = {
-                    selectedNav = 1
-                    currentScreen = "dialer"
-                },
                 onUserAvatar = { user ->
                     selectedUser = user
                     currentScreen = "profile"
