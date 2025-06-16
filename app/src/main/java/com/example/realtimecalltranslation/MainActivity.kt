@@ -249,7 +249,7 @@ class MainActivity : ComponentActivity() {
                                         callTime
                                     ).toString()
 
-                                    val resolvedUser = userToLog?.takeIf { it.phone == numberToLog } ?: User(
+                                    val resolvedUser: User = userToLog?.takeIf { it.phone == numberToLog } ?: User(
                                         id = numberToLog!!,
                                         name = numberToLog!!,
                                         phone = numberToLog!!,
