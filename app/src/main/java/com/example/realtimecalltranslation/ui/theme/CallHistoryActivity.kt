@@ -71,7 +71,6 @@ fun CallHistoryScreenContent() {
         callLogs = callLogs,
         onProfile = { /* handle profile click */ },
         onCall = { /* handle call */ },
-        onAddNew = { /* handle add new */ },
         onUserAvatar = { /* handle avatar click */ },
         onFavourites = { /* handle favourites */ },
         onDialer = { /* handle dialer */ },
