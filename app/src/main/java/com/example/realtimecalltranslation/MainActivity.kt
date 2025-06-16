@@ -210,16 +210,24 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("number") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
+                        val user = usersToDisplay.find { it.phone == number }
+                        val contactName = user?.name ?: number // Use number as fallback name
+                        val contactProfilePicUrl = user?.profilePicUrl
+
                         CallScreen(
                             channel = number,
+                            contactName = contactName,
+                            contactProfilePicUrl = contactProfilePicUrl,
                             token = null,
                             appId = "YOUR_APP_ID",
                             localIsUsa = true,
                             messages = emptyList(),
                             onCallEnd = {
                                 navController.popBackStack()
-                                // callHistoryRecomposeKey++ // Removed as per Subtask 16
+                                // callHistoryRecomposeKey++ // This line should remain commented out or removed
                             },
+                            onToggleLoudspeaker = { /* TODO: Implement loudspeaker logic */ },
+                            onToggleMute = { /* TODO: Implement mute logic */ },
                             mainRed = mainRed,
                             mainWhite = mainWhite
                         )
