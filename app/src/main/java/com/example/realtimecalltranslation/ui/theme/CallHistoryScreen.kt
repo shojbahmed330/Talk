@@ -29,7 +29,6 @@ fun CallHistoryScreen(
     callLogs: List<CallLog>,
     onProfile: (User) -> Unit,
     onCall: (User) -> Unit,
-    onAddNew: () -> Unit,
     onUserAvatar: (User) -> Unit,
     onFavourites: () -> Unit,
     onDialer: () -> Unit,
@@ -86,20 +85,6 @@ fun CallHistoryScreen(
                     color = mainWhite,
                     modifier = Modifier
                 )
-                IconButton(
-                    onClick = onAddNew,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .background(mainWhite, CircleShape)
-                        .border(2.dp, mainRed, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = "Add Call",
-                        tint = mainRed,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
             }
         }
 
@@ -165,7 +150,7 @@ fun CallHistoryScreen(
                 mainWhite = mainWhite,
                 accentRed = accentRed,
                 lightRed = lightRed,
-                modifier = Modifier.width(100.dp)
+                modifier = Modifier.width(110.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             FilterTab(
@@ -176,7 +161,7 @@ fun CallHistoryScreen(
                 mainWhite = mainWhite,
                 accentRed = accentRed,
                 lightRed = lightRed,
-                modifier = Modifier.width(100.dp)
+                modifier = Modifier.width(110.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             FilterTab(
@@ -187,7 +172,7 @@ fun CallHistoryScreen(
                 mainWhite = mainWhite,
                 accentRed = accentRed,
                 lightRed = lightRed,
-                modifier = Modifier.width(100.dp)
+                modifier = Modifier.width(110.dp)
             )
         }
 
@@ -234,19 +219,19 @@ fun CallHistoryScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .background(
-                            if (selectedNav == 2) navIconSelected else mainWhite,
+                            if (selectedNav == 2) mainRed else mainWhite, // Updated
                             CircleShape
                         )
                         .border(
                             width = if (selectedNav == 2) 2.dp else 1.dp,
-                            color = if (selectedNav == 2) mainRed else navIconUnselected,
+                            color = if (selectedNav == 2) mainWhite else lightRed, // Updated
                             shape = CircleShape
                         )
                 ) {
                     Icon(
                         Icons.Filled.Person,
                         contentDescription = "Contacts",
-                        tint = if (selectedNav == 2) mainWhite else navIconSelected,
+                        tint = if (selectedNav == 2) mainWhite else accentRed, // Updated
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -255,19 +240,19 @@ fun CallHistoryScreen(
                     modifier = Modifier
                         .size(64.dp)
                         .background(
-                            if (selectedNav == 1) mainRed else cardBg,
+                            if (selectedNav == 1) mainRed else mainWhite, // Updated
                             CircleShape
                         )
                         .border(
-                            width = 3.dp,
-                            color = mainWhite,
+                            width = 3.dp, // Kept original logic for width
+                            color = if (selectedNav == 1) mainWhite else lightRed, // Updated
                             shape = CircleShape
                         )
                 ) {
                     Icon(
                         Icons.Filled.Add,
                         contentDescription = "Dialer",
-                        tint = mainWhite,
+                        tint = if (selectedNav == 1) mainWhite else accentRed, // Updated
                         modifier = Modifier.size(36.dp)
                     )
                 }
@@ -276,19 +261,19 @@ fun CallHistoryScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .background(
-                            if (selectedNav == 0) navIconSelected else mainWhite,
+                            if (selectedNav == 0) mainRed else mainWhite, // Updated
                             CircleShape
                         )
                         .border(
                             width = if (selectedNav == 0) 2.dp else 1.dp,
-                            color = if (selectedNav == 0) mainRed else navIconUnselected,
+                            color = if (selectedNav == 0) mainWhite else lightRed, // Updated
                             shape = CircleShape
                         )
                 ) {
                     Icon(
                         Icons.Filled.Star,
                         contentDescription = "Favourites",
-                        tint = if (selectedNav == 0) mainWhite else navIconSelected,
+                        tint = if (selectedNav == 0) mainWhite else accentRed, // Updated
                         modifier = Modifier.size(30.dp)
                     )
                 }

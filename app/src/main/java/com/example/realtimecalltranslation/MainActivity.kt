@@ -26,7 +26,13 @@ import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.Message
 import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+import com.example.realtimecalltranslation.ui.getRealCallLogs
+import com.example.realtimecalltranslation.ui.theme.mainRed
+import com.example.realtimecalltranslation.ui.theme.mainWhite
+import com.example.realtimecalltranslation.ui.theme.accentRed
+import com.example.realtimecalltranslation.ui.theme.lightRed
+import com.example.realtimecalltranslation.ui.theme.mainGreen
+import com.example.realtimecalltranslation.ui.theme.lightGreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +40,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             RealTimeCallTranslationTheme {
                 val navController = rememberNavController()
+                var callHistoryRecomposeKey by remember { mutableStateOf(0) }
 
                 // Demo users & logs
                 val demoUsers = listOf(
@@ -61,7 +68,7 @@ class MainActivity : ComponentActivity() {
                 val realCallLogs = remember(hasPermission) {
                     if (hasPermission) getRealCallLogs(context) else emptyList()
                 }
-                val realUsers = realCallLogs.map { it.user }.distinctBy { it.id }
+                val realUsers: List<User> = realCallLogs.map { callLog: CallLog -> callLog.user }.distinctBy { user: User -> user.id }
 
                 // Fallback: real log থাকলে ওটাই, না থাকলে demo
                 val users = if (realCallLogs.isNotEmpty()) realUsers else demoUsers
@@ -82,18 +89,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("callhistory") {
-                        // এখানে CallHistoryScreen ব্যবহার করুন
-                        CallHistoryScreen(
-                            userList = users,
-                            callLogs = callLogs,
-                            onProfile = { user ->
-                                navController.navigate("profile/${user.id}")
+                        key(callHistoryRecomposeKey) {
+                            // 여기 CallHistoryScreen 사용 করুন
+                            CallHistoryScreen(
+                                callLogs = callLogs,
+                                onProfile = { user ->
+                                    navController.navigate("profile/${user.id}")
                             },
                             onCall = { user ->
                                 navController.navigate("call/${user.phone}")
-                            },
-                            onAddNew = {
-                                navController.navigate("dialer")
                             },
                             onUserAvatar = { user ->
                                 navController.navigate("profile/${user.id}")
@@ -107,14 +111,34 @@ class MainActivity : ComponentActivity() {
                             onContacts = {
                                 navController.navigate("contacts")
                             },
-                            selectedNav = 0
+                            selectedNav = 0,
+                            mainRed = mainRed,
+                            mainWhite = mainWhite,
+                            accentRed = accentRed,
+                            lightRed = lightRed
                         )
+                        }
                     }
                     composable("favourites") {
-                        FavouritesScreen()
+                        FavouritesScreen(
+                            onBack = { navController.popBackStack() },
+                            mainRed = mainRed,
+                            mainWhite = mainWhite,
+                            accentRed = accentRed,
+                            lightRed = lightRed
+                        )
                     }
                     composable("contacts") {
-                        ContactsScreen()
+                        ContactsScreen(
+                            onBack = { navController.popBackStack() },
+                            onCallContact = { number -> navController.navigate("call/$number") },
+                            mainRed = mainRed,
+                            accentRed = accentRed,
+                            mainWhite = mainWhite,
+                            mainGreen = mainGreen,
+                            lightGreen = lightGreen,
+                            lightRed = lightRed
+                        )
                     }
                     composable(
                         route = "profile/{userId}",
@@ -127,13 +151,17 @@ class MainActivity : ComponentActivity() {
                                 user = user,
                                 callLogs = callLogs.filter { it.user.id == user.id },
                                 onBack = { navController.popBackStack() },
-                                onCall = { navController.navigate("call/${user.phone}") }
+                                onCall = { navController.navigate("call/${user.phone}") },
+                                mainRed = mainRed,
+                                mainWhite = mainWhite
                             )
                         }
                     }
                     composable("dialer") {
                         DialerScreen(
-                            onClose = { navController.popBackStack() }
+                            onClose = { navController.popBackStack() },
+                            mainRed = mainRed,
+                            mainWhite = mainWhite
                         )
                     }
                     composable(
@@ -146,19 +174,13 @@ class MainActivity : ComponentActivity() {
                             token = null,
                             appId = "YOUR_APP_ID",
                             localIsUsa = true,
-                            messages = listOf(
-                                Message(
-                                    fromUsa = true,
-                                    original = "How are you?",
-                                    translated = "কেমন আছো?"
-                                ),
-                                Message(
-                                    fromUsa = false,
-                                    original = "Ami bhalo achi.",
-                                    translated = "I am fine."
-                                )
-                            ),
-                            onCallEnd = { navController.popBackStack() }
+                            messages = emptyList(),
+                            onCallEnd = {
+                                navController.popBackStack()
+                                callHistoryRecomposeKey++
+                            },
+                            mainRed = mainRed,
+                            mainWhite = mainWhite
                         )
                     }
                 }
