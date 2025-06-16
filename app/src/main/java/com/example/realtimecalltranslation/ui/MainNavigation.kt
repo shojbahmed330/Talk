@@ -136,19 +136,29 @@ fun MainNavigation(
             mainGreen = mainGreen,
             lightGreen = lightGreen
         )
-        "call" -> CallScreen(
-            channel = callTo ?: "",
-            token = token,
-            appId = appId,
-            localIsUsa = localIsUsa,
-            messages = messages,
-            onCallEnd = {
-                selectedNav = 0
-                currentScreen = "history"
-            },
-            mainRed = mainRed,
-            mainWhite = mainWhite
-        )
+        "call" -> {
+            val user = activeUsers.find { it.phone == callTo }
+            val contactName = user?.name ?: callTo ?: "Unknown"
+            val contactProfilePicUrl = user?.profilePicUrl
+
+            CallScreen(
+                channel = callTo ?: "",
+                contactName = contactName,
+                contactProfilePicUrl = contactProfilePicUrl,
+                token = token,
+                appId = appId,
+                localIsUsa = localIsUsa,
+                messages = messages,
+                onCallEnd = {
+                    selectedNav = 0
+                    currentScreen = "history"
+                },
+                onToggleLoudspeaker = { /* TODO: Implement in MainNavigation if needed */ },
+                onToggleMute = { /* TODO: Implement in MainNavigation if needed */ },
+                mainRed = mainRed,
+                mainWhite = mainWhite
+            )
+        }
         "profile" -> {
             selectedUser?.let { user ->
                 ProfileScreen(
