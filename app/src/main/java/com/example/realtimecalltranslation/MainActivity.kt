@@ -4,40 +4,41 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.provider.CallLog as AndroidCallLog
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
-import com.example.realtimecalltranslation.ui.theme.DialerScreen
-import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
-import com.example.realtimecalltranslation.ui.theme.ContactsScreen
+import com.example.realtimecalltranslation.ui.CallScreen
 import com.example.realtimecalltranslation.ui.LoginScreen
+import com.example.realtimecalltranslation.ui.Message
 import com.example.realtimecalltranslation.ui.ProfileScreen
 import com.example.realtimecalltranslation.ui.WelcomeScreen
-import com.example.realtimecalltranslation.ui.CallScreen
-import com.example.realtimecalltranslation.ui.theme.RealTimeCallTranslationTheme
+import com.example.realtimecalltranslation.ui.getRealCallLogs
+import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
 import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
-import com.example.realtimecalltranslation.ui.Message
+import com.example.realtimecalltranslation.ui.theme.ContactsScreen
+import com.example.realtimecalltranslation.ui.theme.DialerScreen
+import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
+import com.example.realtimecalltranslation.ui.theme.RealTimeCallTranslationTheme
 import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.getRealCallLogs
-import com.example.realtimecalltranslation.ui.theme.mainRed
-import com.example.realtimecalltranslation.ui.theme.mainWhite
 import com.example.realtimecalltranslation.ui.theme.accentRed
+import com.example.realtimecalltranslation.ui.theme.lightGreen
 import com.example.realtimecalltranslation.ui.theme.lightRed
 import com.example.realtimecalltranslation.ui.theme.mainGreen
-import com.example.realtimecalltranslation.ui.theme.lightGreen
+import com.example.realtimecalltranslation.ui.theme.mainRed
+import com.example.realtimecalltranslation.ui.theme.mainWhite
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,9 +66,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
-                val localContext = LocalContext.current // Renamed from context to avoid conflict if any
+                val localContext = LocalContext.current
 
-                // Permission check moved up before its first use in LaunchedEffect
                 val hasPermission = ContextCompat.checkSelfPermission(
                     localContext, Manifest.permission.READ_CALL_LOG
                 ) == PackageManager.PERMISSION_GRANTED
@@ -79,11 +79,10 @@ class MainActivity : ComponentActivity() {
                         }
                         callLogsFromSource = logs
                     } else {
-                        callLogsFromSource = emptyList() // Clear if no permission
+                        callLogsFromSource = emptyList()
                     }
                 }
 
-                // Demo users & logs
                 val demoUsers = listOf(
                     User("1", "Shojib", "017XXXXXXXX", "https://randomuser.me/api/portraits/men/96.jpg"),
                     User("2", "Sumi", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
@@ -92,19 +91,11 @@ class MainActivity : ComponentActivity() {
                     User("5", "Maa GP", "015XXXXXXXX", "https://randomuser.me/api/portraits/women/26.jpg")
                 )
                 val demoCallLogs = listOf(
-                    CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "28 Oct 2023, 09:15 AM"),
-                    CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "28 Oct 2023, 09:12 AM"),
-                    CallLog(demoUsers[2], "Hello!", CallType.OUTGOING, false, "27 Oct 2023, 05:30 PM"),
-                    CallLog(demoUsers[3], "Test call", CallType.INCOMING, false, "27 Oct 2023, 02:00 PM"),
-                    CallLog(demoUsers[4], "Another call", CallType.OUTGOING, false, "26 Oct 2023, 11:00 AM")
+                    CallLog(demoUsers[0], "Can translate", CallType.INCOMING, false, "29 Oct 2023, 10:00 AM"),
+                    CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "29 Oct 2023, 09:30 AM"),
+                    CallLog(demoUsers[2], "Hello!", CallType.OUTGOING, false, "28 Oct 2023, 05:00 PM")
                 )
 
-                // val context = LocalContext.current // Commented out as localContext is defined above
-
-                // Permission check remains, used by LaunchedEffect and fallback logic
-                // val hasPermission = ContextCompat.checkSelfPermission(...) // Definition moved up
-
-                // Determine final data to display
                 val finalCallLogsToDisplay = if (callLogsFromSource.isNotEmpty()) {
                     callLogsFromSource
                 } else {
@@ -117,53 +108,39 @@ class MainActivity : ComponentActivity() {
                     demoUsers
                 }).distinctBy { it.id }
 
-
                 NavHost(navController, startDestination = "welcome") {
                     composable("welcome") {
-                        WelcomeScreen(
-                            onGetStarted = { navController.navigate("login") }
-                        )
+                        WelcomeScreen(onGetStarted = { navController.navigate("login") })
                     }
                     composable("login") {
                         LoginScreen(
                             onLogin = { navController.navigate("callhistory") },
-                            onFacebook = { /* Facebook login logic */ },
-                            onGoogle = { /* Google login logic */ },
-                            onSignUp = { /* Signup logic */ }
+                            onFacebook = { /* TODO */ },
+                            onGoogle = { /* TODO */ },
+                            onSignUp = { /* TODO */ }
                         )
                     }
                     composable("callhistory") {
                         key(callHistoryRecomposeKey) {
-                            // 여기 CallHistoryScreen 사용 করুন
                             CallHistoryScreen(
-                            callLogs = finalCallLogsToDisplay,
-                                onProfile = { user ->
-                                    navController.navigate("profile/${user.id}")
-                            },
-                            onCall = { user ->
-                                numberToLog = user.phone
-                                userToLog = user
-                                callStartTimeForLog = System.currentTimeMillis()
-                                navController.navigate("call/${user.phone}")
-                            },
-                            onUserAvatar = { user ->
-                                navController.navigate("profile/${user.id}")
-                            },
-                            onFavourites = {
-                                navController.navigate("favourites")
-                            },
-                            onDialer = {
-                                navController.navigate("dialer")
-                            },
-                            onContacts = {
-                                navController.navigate("contacts")
-                            },
-                            selectedNav = 0,
-                            mainRed = mainRed,
-                            mainWhite = mainWhite,
-                            accentRed = accentRed,
-                            lightRed = lightRed
-                        )
+                                callLogs = finalCallLogsToDisplay,
+                                onProfile = { user -> navController.navigate("profile/${user.id}") },
+                                onCall = { user ->
+                                    numberToLog = user.phone
+                                    userToLog = user
+                                    callStartTimeForLog = System.currentTimeMillis()
+                                    navController.navigate("call/${user.phone}")
+                                },
+                                onUserAvatar = { user -> navController.navigate("profile/${user.id}") },
+                                onFavourites = { navController.navigate("favourites") },
+                                onDialer = { navController.navigate("dialer") },
+                                onContacts = { navController.navigate("contacts") },
+                                selectedNav = 0,
+                                mainRed = mainRed,
+                                mainWhite = mainWhite,
+                                accentRed = accentRed,
+                                lightRed = lightRed
+                            )
                         }
                     }
                     composable("favourites") {
@@ -178,11 +155,17 @@ class MainActivity : ComponentActivity() {
                     composable("contacts") {
                         ContactsScreen(
                             onBack = { navController.popBackStack() },
-                            onCallContact = { number ->
-                                numberToLog = number
-                                userToLog = usersToDisplay.find { it.phone == number }
+                            onCallContact = { contactNameArg, phoneNumberArg -> // Renamed for clarity
+                                numberToLog = phoneNumberArg
+                                userToLog = User( // Create User object for logging
+                                    id = phoneNumberArg,
+                                    name = contactNameArg,
+                                    phone = phoneNumberArg,
+                                    profilePicUrl = usersToDisplay.find { it.phone == phoneNumberArg }?.profilePicUrl
+                                )
                                 callStartTimeForLog = System.currentTimeMillis()
-                                navController.navigate("call/$number")
+                                val encodedName = URLEncoder.encode(contactNameArg, StandardCharsets.UTF_8.name())
+                                navController.navigate("call/$phoneNumberArg?name=$encodedName")
                             },
                             mainRed = mainRed,
                             accentRed = accentRed,
@@ -197,13 +180,18 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("userId") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                        val user = usersToDisplay.find { it.id == userId } // Use usersToDisplay
+                        val user = usersToDisplay.find { it.id == userId }
                         if (user != null) {
                             ProfileScreen(
                                 user = user,
-                                callLogs = finalCallLogsToDisplay.filter { it.user.id == user.id }, // Use finalCallLogsToDisplay
+                                callLogs = finalCallLogsToDisplay.filter { it.user.id == user.id },
                                 onBack = { navController.popBackStack() },
-                                onCall = { navController.navigate("call/${user.phone}") },
+                                onCall = { u ->
+                                    numberToLog = u.phone
+                                    userToLog = u
+                                    callStartTimeForLog = System.currentTimeMillis()
+                                    navController.navigate("call/${u.phone}")
+                                },
                                 mainRed = mainRed,
                                 mainWhite = mainWhite
                             )
@@ -223,25 +211,29 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable(
-                        route = "call/{number}",
-                        arguments = listOf(navArgument("number") { type = NavType.StringType })
+                        route = "call/{number}?name={name}", // Updated route
+                        arguments = listOf(
+                            navArgument("number") { type = NavType.StringType },
+                            navArgument("name") { type = NavType.StringType; nullable = true } // Added name argument
+                        )
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
-                        val user = usersToDisplay.find { it.phone == number }
-                        val contactName = user?.name ?: number // Use number as fallback name
-                        val contactProfilePicUrl = user?.profilePicUrl
+                        val nameFromRoute = backStackEntry.arguments?.getString("name")
+
+                        val userFromLookup = usersToDisplay.find { it.phone == number }
+                        val finalContactName = nameFromRoute ?: userFromLookup?.name ?: number
+                        val finalContactProfilePicUrl = userFromLookup?.profilePicUrl
 
                         CallScreen(
                             channel = number,
-                            contactName = contactName,
-                            contactProfilePicUrl = contactProfilePicUrl,
+                            contactName = finalContactName,
+                            contactProfilePicUrl = finalContactProfilePicUrl,
                             token = null,
                             appId = "YOUR_APP_ID",
                             localIsUsa = true,
                             messages = emptyList(),
                             onCallEnd = {
                                 navController.popBackStack()
-
                                 if (numberToLog != null) {
                                     val callTime = callStartTimeForLog
                                     val callTimeFormatted = android.text.format.DateFormat.format(
@@ -269,10 +261,9 @@ class MainActivity : ComponentActivity() {
                                     userToLog = null
                                     callStartTimeForLog = 0L
                                 }
-                                // callHistoryRecomposeKey++ // This line should remain commented out or removed
                             },
-                            onToggleLoudspeaker = { /* TODO: Implement loudspeaker logic */ },
-                            onToggleMute = { /* TODO: Implement mute logic */ },
+                            onToggleLoudspeaker = { /* TODO */ },
+                            onToggleMute = { /* TODO */ },
                             mainRed = mainRed,
                             mainWhite = mainWhite
                         )
