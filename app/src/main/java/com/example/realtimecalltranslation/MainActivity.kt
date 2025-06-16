@@ -9,6 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -41,6 +44,19 @@ class MainActivity : ComponentActivity() {
             RealTimeCallTranslationTheme {
                 val navController = rememberNavController()
                 var callHistoryRecomposeKey by remember { mutableStateOf(0) }
+
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            callHistoryRecomposeKey++
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
 
                 // Demo users & logs
                 val demoUsers = listOf(
@@ -177,7 +193,7 @@ class MainActivity : ComponentActivity() {
                             messages = emptyList(),
                             onCallEnd = {
                                 navController.popBackStack()
-                                callHistoryRecomposeKey++
+                                // callHistoryRecomposeKey++ // Removed as per Subtask 16
                             },
                             mainRed = mainRed,
                             mainWhite = mainWhite
