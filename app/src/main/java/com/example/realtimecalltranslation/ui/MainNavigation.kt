@@ -105,7 +105,14 @@ fun MainNavigation(
                 currentScreen = "history"
             },
             mainRed = mainRed,
-            mainWhite = mainWhite
+            mainWhite = mainWhite,
+            onNavigateToCall = { number ->
+                callTo = number
+                messages = listOf( // Optional: set initial messages
+                    Message(fromUsa = true, original = "Dialing...", translated = "ডায়াল হচ্ছে...")
+                )
+                currentScreen = "call"
+            }
         )
         "favourites" -> FavouritesScreen(
             onBack = {

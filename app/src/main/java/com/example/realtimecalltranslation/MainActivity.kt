@@ -12,6 +12,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -58,6 +60,25 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
+                val localContext = LocalContext.current // Renamed from context to avoid conflict if any
+
+                // Permission check moved up before its first use in LaunchedEffect
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    localContext, Manifest.permission.READ_CALL_LOG
+                ) == PackageManager.PERMISSION_GRANTED
+
+                LaunchedEffect(hasPermission, callHistoryRecomposeKey) {
+                    if (hasPermission) {
+                        val logs = withContext(Dispatchers.IO) {
+                            getRealCallLogs(localContext)
+                        }
+                        callLogsFromSource = logs
+                    } else {
+                        callLogsFromSource = emptyList() // Clear if no permission
+                    }
+                }
+
                 // Demo users & logs
                 val demoUsers = listOf(
                     User("1", "Shojib", "017XXXXXXXX", "https://randomuser.me/api/portraits/men/96.jpg"),
@@ -74,21 +95,24 @@ class MainActivity : ComponentActivity() {
                     CallLog(demoUsers[4], "Another call", CallType.OUTGOING, false, "2 min ago")
                 )
 
-                val context = LocalContext.current
+                // val context = LocalContext.current // Commented out as localContext is defined above
 
-                // Real call logs (from Android)
-                val hasPermission = ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.READ_CALL_LOG
-                ) == PackageManager.PERMISSION_GRANTED
+                // Permission check remains, used by LaunchedEffect and fallback logic
+                // val hasPermission = ContextCompat.checkSelfPermission(...) // Definition moved up
 
-                val realCallLogs = remember(hasPermission) {
-                    if (hasPermission) getRealCallLogs(context) else emptyList()
+                // Determine final data to display
+                val finalCallLogsToDisplay = if (callLogsFromSource.isNotEmpty()) {
+                    callLogsFromSource
+                } else {
+                    demoCallLogs
                 }
-                val realUsers: List<User> = realCallLogs.map { callLog: CallLog -> callLog.user }.distinctBy { user: User -> user.id }
 
-                // Fallback: real log থাকলে ওটাই, না থাকলে demo
-                val users = if (realCallLogs.isNotEmpty()) realUsers else demoUsers
-                val callLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
+                val usersToDisplay = (if (callLogsFromSource.isNotEmpty()) {
+                    callLogsFromSource.map { it.user }
+                } else {
+                    demoUsers
+                }).distinctBy { it.id }
+
 
                 NavHost(navController, startDestination = "welcome") {
                     composable("welcome") {
@@ -108,7 +132,7 @@ class MainActivity : ComponentActivity() {
                         key(callHistoryRecomposeKey) {
                             // 여기 CallHistoryScreen 사용 করুন
                             CallHistoryScreen(
-                                callLogs = callLogs,
+                            callLogs = finalCallLogsToDisplay,
                                 onProfile = { user ->
                                     navController.navigate("profile/${user.id}")
                             },
@@ -161,11 +185,11 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("userId") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                        val user = users.find { it.id == userId }
+                        val user = usersToDisplay.find { it.id == userId } // Use usersToDisplay
                         if (user != null) {
                             ProfileScreen(
                                 user = user,
-                                callLogs = callLogs.filter { it.user.id == user.id },
+                                callLogs = finalCallLogsToDisplay.filter { it.user.id == user.id }, // Use finalCallLogsToDisplay
                                 onBack = { navController.popBackStack() },
                                 onCall = { navController.navigate("call/${user.phone}") },
                                 mainRed = mainRed,
@@ -177,7 +201,8 @@ class MainActivity : ComponentActivity() {
                         DialerScreen(
                             onClose = { navController.popBackStack() },
                             mainRed = mainRed,
-                            mainWhite = mainWhite
+                            mainWhite = mainWhite,
+                            onNavigateToCall = { number -> navController.navigate("call/$number") }
                         )
                     }
                     composable(

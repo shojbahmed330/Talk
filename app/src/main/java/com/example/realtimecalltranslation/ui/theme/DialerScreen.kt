@@ -17,16 +17,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.realtimecalltranslation.OutgoingCallActivity
+// import com.example.realtimecalltranslation.OutgoingCallActivity // Removed
 
 @Composable
 fun DialerScreen(
     onClose: () -> Unit,
     mainRed: Color,
-    mainWhite: Color
+    mainWhite: Color,
+    onNavigateToCall: (String) -> Unit // Added
 ) {
     var phoneNumber by remember { mutableStateOf("") }
-    val context = LocalContext.current
+    // val context = LocalContext.current // No longer needed for Intent
 
     // Professional color palette (you can use mainRed/mainWhite if needed)
     val dialerBg = Brush.verticalGradient(
@@ -38,11 +39,11 @@ fun DialerScreen(
     val callBtnTextColor = Color.White
     val iconColor = Color(0xFF4B5563)
 
-    fun goToOutgoingCallActivity(number: String) {
-        val intent = Intent(context, OutgoingCallActivity::class.java)
-        intent.putExtra("CALLEE_NUMBER", number)
-        context.startActivity(intent)
-    }
+    // fun goToOutgoingCallActivity(number: String) { // Removed
+    //     val intent = Intent(context, OutgoingCallActivity::class.java)
+    //     intent.putExtra("CALLEE_NUMBER", number)
+    //     context.startActivity(intent)
+    // }
 
     Column(
         modifier = Modifier
@@ -131,7 +132,7 @@ fun DialerScreen(
 
         // Call Button
         Button(
-            onClick = { if (phoneNumber.isNotEmpty()) goToOutgoingCallActivity(phoneNumber) },
+            onClick = { if (phoneNumber.isNotEmpty()) onNavigateToCall(phoneNumber) }, // Updated
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 70.dp)
