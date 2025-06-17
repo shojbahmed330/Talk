@@ -4,8 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import android.util.Log // Added import
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
@@ -37,6 +36,8 @@ import com.example.realtimecalltranslation.ui.theme.lightRed
 import com.example.realtimecalltranslation.ui.theme.mainGreen
 import com.example.realtimecalltranslation.ui.theme.mainRed
 import com.example.realtimecalltranslation.ui.theme.mainWhite
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -73,13 +74,18 @@ class MainActivity : ComponentActivity() {
                 ) == PackageManager.PERMISSION_GRANTED
 
                 LaunchedEffect(hasPermission, callHistoryRecomposeKey) {
-                    if (hasPermission) {
-                        val logs = withContext(Dispatchers.IO) {
-                            getRealCallLogs(localContext)
+                    try { // Add try
+                        if (hasPermission) {
+                            val logs = withContext(Dispatchers.IO) {
+                                getRealCallLogs(localContext) // localContext should be defined
+                            }
+                            callLogsFromSource = logs
+                        } else {
+                            callLogsFromSource = emptyList()
                         }
-                        callLogsFromSource = logs
-                    } else {
-                        callLogsFromSource = emptyList()
+                    } catch (e: Exception) { // Add catch
+                        Log.e("MainActivityLoad", "Error loading call logs: ${e.message}", e)
+                        callLogsFromSource = emptyList() // Set to a safe default on error
                     }
                 }
 
@@ -155,9 +161,9 @@ class MainActivity : ComponentActivity() {
                     composable("contacts") {
                         ContactsScreen(
                             onBack = { navController.popBackStack() },
-                            onCallContact = { contactNameArg, phoneNumberArg -> // Renamed for clarity
+                            onCallContact = { contactNameArg, phoneNumberArg -> // Correct signature
                                 numberToLog = phoneNumberArg
-                                userToLog = User( // Create User object for logging
+                                userToLog = User(
                                     id = phoneNumberArg,
                                     name = contactNameArg,
                                     phone = phoneNumberArg,
@@ -192,6 +198,40 @@ class MainActivity : ComponentActivity() {
                                     callStartTimeForLog = System.currentTimeMillis()
                                     navController.navigate("call/${u.phone}")
                                 },
+                                onNameUpdate = { newName ->
+                                    val currentUserId = backStackEntry.arguments?.getString("userId")
+                                    if (currentUserId != null) {
+                                        if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
+                                            callLogsFromSource = callLogsFromSource.map { log ->
+                                                if (log.user.id == currentUserId) {
+                                                    log.copy(user = log.user.copy(name = newName))
+                                                } else {
+                                                    log
+                                                }
+                                            }
+                                        }
+                                        if (userToLog?.id == currentUserId) {
+                                            userToLog = userToLog?.copy(name = newName)
+                                        }
+                                    }
+                                },
+                                onProfilePicUriSelected = { uriString ->
+                                    val currentUserId = backStackEntry.arguments?.getString("userId")
+                                    if (currentUserId != null && uriString != null) {
+                                        if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
+                                            callLogsFromSource = callLogsFromSource.map { log ->
+                                                if (log.user.id == currentUserId) {
+                                                    log.copy(user = log.user.copy(profilePicUrl = uriString))
+                                                } else {
+                                                    log
+                                                }
+                                            }
+                                        }
+                                        if (userToLog?.id == currentUserId) {
+                                            userToLog = userToLog?.copy(profilePicUrl = uriString)
+                                        }
+                                    }
+                                },
                                 mainRed = mainRed,
                                 mainWhite = mainWhite
                             )
@@ -211,10 +251,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable(
-                        route = "call/{number}?name={name}", // Updated route
+                        route = "call/{number}?name={name}",
                         arguments = listOf(
                             navArgument("number") { type = NavType.StringType },
-                            navArgument("name") { type = NavType.StringType; nullable = true } // Added name argument
+                            navArgument("name") { type = NavType.StringType; nullable = true }
                         )
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""

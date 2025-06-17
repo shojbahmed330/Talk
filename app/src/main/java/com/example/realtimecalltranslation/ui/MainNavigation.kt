@@ -176,6 +176,14 @@ fun MainNavigation(
                         )
                         currentScreen = "call"
                     },
+                    onNameUpdate = { newName ->
+                        selectedUser = selectedUser?.copy(name = newName) // Update the state
+                    },
+                    onProfilePicUriSelected = { uriString -> // New callback
+                        if (uriString != null) {
+                            selectedUser = selectedUser?.copy(profilePicUrl = uriString)
+                        }
+                    },
                     mainRed = mainRed,
                     mainWhite = mainWhite
                 )
