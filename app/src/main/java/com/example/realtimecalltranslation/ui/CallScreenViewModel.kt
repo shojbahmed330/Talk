@@ -1,0 +1,196 @@
+package com.example.realtimecalltranslation.ui
+
+import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.realtimecalltranslation.agora.AgoraManager
+import com.example.realtimecalltranslation.aws.S3Uploader
+import com.example.realtimecalltranslation.network.RetrofitInstance
+import com.example.realtimecalltranslation.network.TranslationRequest
+import com.example.realtimecalltranslation.util.AmazonTranscribeHelper
+import com.example.realtimecalltranslation.util.AudioRecorderHelper
+import com.example.realtimecalltranslation.util.PollyTTSHelper
+import kotlinx.coroutines.launch
+import java.io.File
+import java.util.UUID
+
+class CallScreenViewModel(
+    private val audioRecorderHelper: AudioRecorderHelper,
+    private val s3Uploader: S3Uploader,
+    private val amazonTranscribeHelper: AmazonTranscribeHelper,
+    private val pollyHelper: PollyTTSHelper,
+    private val agoraManager: AgoraManager, // Kept if VM needs to interact with Agora state/events directly
+    private val rapidApiKey: String
+) : ViewModel() {
+
+    // State variables
+    var isRecording by mutableStateOf(false)
+        private set // Allow external read, internal write
+    var transcriptionStatus by mutableStateOf("Idle")
+        private set
+    var transcribedText by mutableStateOf("")
+        private set
+    var translatedText by mutableStateOf("")
+        private set
+    var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    private val tag = "CallScreenViewModel"
+
+    fun handleRecordAndTranscribePressed() {
+        if (isRecording) {
+            stopRecordingAndProcess()
+        } else {
+            startRecordingProcess()
+        }
+    }
+
+    private fun startRecordingProcess() {
+        pollyHelper.stop() // Stop any ongoing TTS
+        transcriptionStatus = "Recording..."
+        errorMessage = null
+        transcribedText = ""
+        translatedText = ""
+        audioRecorderHelper.startRecording()
+        isRecording = true
+        Log.d(tag, "Recording started.")
+    }
+
+    private fun stopRecordingAndProcess() {
+        pollyHelper.stop() // Stop any ongoing TTS, just in case
+        transcriptionStatus = "Stopping recording..."
+        val outputFile = audioRecorderHelper.stopRecording()
+        isRecording = false
+        Log.d(tag, "Recording stopped. Output file: $outputFile")
+
+        if (outputFile != null) {
+            viewModelScope.launch {
+                try {
+                    transcriptionStatus = "Uploading audio..."
+                    errorMessage = null
+                    // Clear previous results for new operation
+                    transcribedText = ""
+                    translatedText = ""
+
+                    val fileToUpload = File(outputFile)
+                    val objectKey = "audio-to-transcribe/${UUID.randomUUID()}.mp4"
+
+                    val s3Uri = s3Uploader.uploadFileToS3(fileToUpload, objectKey)
+                    if (s3Uri != null) {
+                        Log.d(tag, "Audio uploaded to S3: $s3Uri")
+                        transcriptionStatus = "Transcribing audio..."
+                        val transcribedTextString = amazonTranscribeHelper.startTranscriptionJob(s3Uri, languageCode = "en-US")
+
+                        if (transcribedTextString != null) {
+                            Log.d(tag, "Transcription successful: $transcribedTextString")
+                            transcribedText = transcribedTextString
+                            transcriptionStatus = "Translating text..."
+
+                            if (transcribedTextString.isNotBlank()) {
+                                try {
+                                    val request = TranslationRequest(
+                                        q = transcribedTextString,
+                                        target = "bn", // Target: Bangla
+                                        source = "en"  // Source: English
+                                    )
+                                    val response = RetrofitInstance.api.translate(
+                                        body = request,
+                                        apiKey = rapidApiKey
+                                    )
+                                    if (response.isSuccessful) {
+                                        val translationResult = response.body()?.data?.translations?.firstOrNull()?.translatedText
+                                        if (translationResult != null) {
+                                            Log.d(tag, "Translation successful: $translationResult")
+                                            translatedText = translationResult
+                                            transcriptionStatus = "Speaking translated text..."
+                                            try {
+                                                val targetVoiceId = "Zoya" // Bengali (India)
+                                                pollyHelper.speak(translationResult, voiceId = targetVoiceId)
+                                                transcriptionStatus = "Playing translated audio."
+                                                Log.d(tag, "TTS started for: $translationResult")
+                                            } catch (e: Exception) {
+                                                Log.e(tag, "TTS Error: ${e.message}", e)
+                                                errorMessage = "TTS Error: ${e.localizedMessage}"
+                                                transcriptionStatus = "TTS failed."
+                                            }
+                                        } else {
+                                            Log.e(tag, "Translation result was empty.")
+                                            errorMessage = "Translation result was empty."
+                                            transcriptionStatus = "Error translating"
+                                        }
+                                    } else {
+                                        val errorBody = response.errorBody()?.string()
+                                        Log.e(tag, "Translation API error: ${response.code()} - ${response.message()} - $errorBody")
+                                        errorMessage = "Translation API error: ${response.code()}"
+                                        transcriptionStatus = "Error translating"
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(tag, "Translation failed: ${e.message}", e)
+                                    errorMessage = "Translation failed: ${e.localizedMessage}"
+                                    transcriptionStatus = "Error translating"
+                                }
+                            } else {
+                                transcriptionStatus = "Nothing to translate"
+                            }
+                        } else {
+                            Log.e(tag, "Transcription failed or returned null.")
+                            errorMessage = "Transcription failed."
+                            transcriptionStatus = "Error"
+                        }
+                    } else {
+                        Log.e(tag, "S3 Upload failed.")
+                        errorMessage = "S3 Upload failed."
+                        transcriptionStatus = "Error"
+                    }
+                } catch (e: Exception) {
+                    Log.e(tag, "Error in STT-Translate-TTS process: ${e.message}", e)
+                    errorMessage = "Error: ${e.localizedMessage}"
+                    transcriptionStatus = "Error"
+                } finally {
+                    // Clean up the local audio file
+                    outputFile.let { File(it).delete() }
+                    Log.d(tag, "Cleaned up local audio file: $outputFile")
+                }
+            }
+        } else {
+            Log.e(tag, "Audio recording output file is null.")
+            errorMessage = "Audio recording failed."
+            transcriptionStatus = "Error"
+        }
+    }
+
+    fun stopOngoingTTS() {
+        pollyHelper.stop()
+    }
+
+    fun stopOngoingRecordingAndCleanup() {
+        if(isRecording) {
+            val outputFile = audioRecorderHelper.stopRecording()
+            isRecording = false
+            if (outputFile != null) {
+                File(outputFile).delete()
+                Log.d(tag, "Ongoing recording stopped and file $outputFile deleted.")
+            }
+        }
+    }
+
+    // agoraManager related methods can be added here if CallScreen delegates them.
+    // For example:
+    // fun joinAgoraChannel(channel: String, token: String?, uid: Int) {
+    //     agoraManager.joinChannel(channel, token, uid)
+    // }
+    // fun leaveAgoraChannel() {
+    //     agoraManager.leaveChannel()
+    // }
+
+    override fun onCleared() {
+        super.onCleared()
+        // PollyHelper is released by MainActivity's DisposableEffect.
+        // AudioRecorderHelper doesn't have a release method.
+        // AgoraManager is released by MainActivity's DisposableEffect.
+        Log.d(tag, "ViewModel cleared.")
+    }
+}
