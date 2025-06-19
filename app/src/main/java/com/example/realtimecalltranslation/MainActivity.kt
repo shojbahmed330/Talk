@@ -74,6 +74,8 @@ class MainActivity : ComponentActivity() {
                 val amazonTranscribeHelper = remember { AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
                 val pollyHelper = remember { PollyTTSHelper(context = applicationContext, accessKey = awsAccessKey, secretKey = awsSecretKey) }
 
+                // ViewModelFactory and ViewModel might become unused if CallScreen is the only consumer
+                // For now, they are kept as per previous instructions.
                 val callScreenViewModelFactory = CallScreenViewModelFactory(audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
                 val callScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
@@ -111,7 +113,7 @@ class MainActivity : ComponentActivity() {
                             callLogs = callLogsToDisplay,
                             onProfile = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
                             onCall = { user -> userToLog = user; navController.navigate("call/${user.phone}") },
-                            onAddNew = { navController.navigate("dialer") }, // Ensured onAddNew is present
+                            // onAddNew = { navController.navigate("dialer") }, // REMOVED as per current task
                             onUserAvatar = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
                             onFavourites = { navController.navigate("favourites") },
                             onDialer = { navController.navigate("dialer") },
@@ -148,37 +150,25 @@ class MainActivity : ComponentActivity() {
                             ProfileScreen(
                                 user = userForProfile,
                                 callLogs = callLogsToDisplay.filter { it.user.id == currentUserId },
-                                imageDataSource = profileScreenImageDisplayData, // Correctly passed
-                                onNameUpdate = { newName -> // Correctly passed with logic
-                                    // This logic updates the mutable callLogsFromSource
+                                imageDataSource = profileScreenImageDisplayData, // ADDED BACK
+                                onNameUpdate = { newName -> // ADDED BACK
                                     callLogsFromSource = callLogsFromSource.map { log ->
-                                        if (log.user.id == currentUserId) {
-                                            log.copy(user = log.user.copy(name = newName))
-                                        } else log
+                                        if (log.user.id == currentUserId) { log.copy(user = log.user.copy(name = newName)) } else log
                                     }
-                                    // Also update userToLog if it's the one being edited
-                                    if (userToLog?.id == currentUserId) {
-                                        userToLog = userToLog?.copy(name = newName)
-                                    }
+                                    if (userToLog?.id == currentUserId) { userToLog = userToLog?.copy(name = newName) }
                                 },
-                                onProfilePicUriSelected = { uriString -> // Correctly passed with logic
-                                    profileScreenImageDisplayData = null // Reset for immediate UI feedback
+                                onProfilePicUriSelected = { uriString -> // ADDED BACK
+                                    profileScreenImageDisplayData = null
                                     callLogsFromSource = callLogsFromSource.map { log ->
-                                        if (log.user.id == currentUserId) {
-                                            log.copy(user = log.user.copy(profilePicUrl = uriString))
-                                        } else log
+                                        if (log.user.id == currentUserId) { log.copy(user = log.user.copy(profilePicUrl = uriString)) } else log
                                     }
-                                    if (userToLog?.id == currentUserId) {
-                                        userToLog = userToLog?.copy(profilePicUrl = uriString)
-                                    }
-
+                                    if (userToLog?.id == currentUserId) { userToLog = userToLog?.copy(profilePicUrl = uriString) }
                                     if (uriString != null) {
                                         scope.launch {
                                             try {
                                                 val inputStream: InputStream? = applicationContext.contentResolver.openInputStream(Uri.parse(uriString))
-                                                val byteArray = inputStream?.readBytes()
+                                                profileScreenImageDisplayData = inputStream?.readBytes() ?: uriString
                                                 inputStream?.close()
-                                                profileScreenImageDisplayData = byteArray ?: uriString
                                             } catch (e: Exception) {
                                                 android.util.Log.e("MainActivity", "Error reading image URI: $uriString", e)
                                                 profileScreenImageDisplayData = uriString
@@ -212,9 +202,8 @@ class MainActivity : ComponentActivity() {
                              userToLog = usersToDisplay.find{it.phone == number} ?: User(id=number, name=number, phone=number)
                         }
                         CallScreen(
-                            // callScreenViewModel = callScreenViewModel, // Removed
-                            // agoraManager = agoraManager, // Removed
-                            appId = agoraAppId, // Added
+                            // callScreenViewModel, agoraManager REMOVED
+                            appId = agoraAppId, // ADDED
                             channel = number,
                             token = null,
                             localIsUsa = true,
