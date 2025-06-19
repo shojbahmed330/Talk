@@ -1,9 +1,9 @@
 package com.example.realtimecalltranslation.ui
 
+import android.Manifest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import android.Manifest
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape // Added import
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,12 +12,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.realtimecalltranslation.agora.AgoraManager
-import com.example.realtimecalltranslation.ui.CallScreenViewModel // Added ViewModel import
+import com.example.realtimecalltranslation.ui.CallScreenViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-// Removed unused imports like S3Uploader, AudioRecorderHelper, etc. as they are now in ViewModel
-// Removed kotlinx.coroutines.launch, File, UUID as direct CallScreen imports
 
 data class Message(
     val fromUsa: Boolean,
@@ -120,7 +118,7 @@ fun CallScreen(
                         }
                         Surface(
                             color = if (msg.fromUsa) mainRed.copy(alpha = 0.11f) else mainWhite.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(12.dp), // This line requires the import
                             modifier = Modifier.padding(4.dp)
                         ) {
                             Text(
@@ -137,11 +135,13 @@ fun CallScreen(
         Spacer(Modifier.height(16.dp))
         Button( // End Call Button (existing)
             onClick = {
-                pollyHelper.stop() // Stop TTS on call end
-                if (isRecording) { // Stop recording if active when ending call
-                    audioRecorderHelper.stopRecording()
-                    isRecording = false
-                }
+                // pollyHelper.stop() // This was from a previous version, now handled by ViewModel
+                // if (isRecording) {
+                //    audioRecorderHelper.stopRecording()
+                //    isRecording = false
+                // }
+                callScreenViewModel.stopOngoingTTS()
+                callScreenViewModel.stopOngoingRecordingAndCleanup()
                 onCallEnd()
             },
             colors = ButtonDefaults.buttonColors(

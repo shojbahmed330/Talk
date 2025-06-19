@@ -130,29 +130,44 @@ class AmazonTranscribeHelper(
         // Poll until job completes
         while (true) {
             try {
-                Thread.sleep(5000) // Increased polling interval
+                Thread.sleep(5000) // Polling interval
                 val jobResult = transcribeClient.getTranscriptionJob(GetTranscriptionJobRequest().withTranscriptionJobName(jobName))
                 val job = jobResult.transcriptionJob
                 android.util.Log.d("TranscribeHelper", "Job $jobName status: ${job.transcriptionJobStatus}")
 
-                if (job.transcriptionJobStatus == TranscriptionJobStatus.COMPLETED.toString()) {
-                    val transcriptFileUri = job.transcript?.transcriptFileUri
-                    if (transcriptFileUri != null) {
-                        return@withContext getTranscriptionResult(transcriptFileUri)
-                    } else {
-                        android.util.Log.e("TranscribeHelper", "Transcription completed but transcriptFileUri is null for job $jobName")
+                when (TranscriptionJobStatus.fromValue(job.transcriptionJobStatus)) {
+                    TranscriptionJobStatus.COMPLETED -> {
+                        val transcriptFileUri = job.transcript?.transcriptFileUri
+                        return@withContext if (transcriptFileUri != null) {
+                            getTranscriptionResult(transcriptFileUri)
+                        } else {
+                            android.util.Log.e("TranscribeHelper", "Transcription completed but transcriptFileUri is null for job $jobName")
+                            null
+                        }
+                    }
+                    TranscriptionJobStatus.FAILED -> {
+                        val failureReason = job.failureReason
+                        android.util.Log.e("TranscribeHelper", "Transcription job $jobName failed: $failureReason")
+                        // For now, returning null to align with String? and let ViewModel handle 'no result'
                         return@withContext null
                     }
-                }
-                if (job.transcriptionJobStatus == TranscriptionJobStatus.FAILED.toString()) {
-                    val failureReason = job.failureReason
-                    android.util.Log.e("TranscribeHelper", "Transcription job $jobName failed: $failureReason")
-                    throw Exception("Transcription job $jobName failed: $failureReason")
+                    else -> { // IN_PROGRESS, QUEUED, etc.
+                        // Do nothing here, the loop will continue to the next iteration (Thread.sleep)
+                        // This ensures continuous polling.
+                    }
                 }
             } catch (e: Exception) {
                  android.util.Log.e("TranscribeHelper", "Exception during polling/processing for job $jobName: ${e.message}", e)
-                 return@withContext null // Exit if polling fails catastrophically
+                 return@withContext null // Exit if polling itself fails (e.g., network issue during getTranscriptionJob)
             }
         }
+        // Unreachable code, but needed for compiler if it can't infer exit via while(true) + returns in all paths.
+        // However, with proper returns in COMPLETED, FAILED, and catch, this line should ideally not be necessary.
+        // If a compiler error about missing return for String? occurs, this might be a point of investigation.
+        // For now, assuming the returns within the loop cover all logical exits.
+
+        // Explicit return statement for the withContext block,
+        // even if logically unreachable, to satisfy compiler type inference if it's struggling.
+        return@withContext null
     }
 }

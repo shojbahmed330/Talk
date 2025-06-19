@@ -32,6 +32,8 @@ import com.example.realtimecalltranslation.ui.ProfileScreen
 import com.example.realtimecalltranslation.ui.WelcomeScreen
 import com.example.realtimecalltranslation.ui.CallScreen
 import com.example.realtimecalltranslation.ui.theme.RealTimeCallTranslationTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
 import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.Message
@@ -236,10 +238,12 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("number") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
+                        val mainRedColor = MaterialTheme.colorScheme.primary // Example color
+                        val mainWhiteColor = Color.White // Example color
+
                         CallScreen(
-                            // Pass ViewModel instead of individual helpers and API key
                             callScreenViewModel = callScreenViewModel,
-                            agoraManager = agoraManager, // Keep passing for now, or move join/leave to VM
+                            agoraManager = agoraManager,
                             channel = number,
                             token = null,
                             localIsUsa = true,
@@ -255,6 +259,8 @@ class MainActivity : ComponentActivity() {
                                     translated = "I am fine."
                                 )
                             ),
+                            mainRed = mainRedColor,
+                            mainWhite = mainWhiteColor,
                             onCallEnd = { navController.popBackStack() }
                         )
                     }
