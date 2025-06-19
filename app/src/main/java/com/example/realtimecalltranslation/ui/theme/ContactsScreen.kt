@@ -32,7 +32,9 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 
-import com.example.realtimecalltranslation.ui.theme.*
+// Removed: import com.example.realtimecalltranslation.ui.theme.*
+// Assuming ContactListItem, mainRed, accentRed etc. are available through other means
+// (e.g. ContactListItem in same package, Colors defined in Theme.kt or Color.kt and accessible)
 
 data class Contact(val name: String, val phone: String)
 
@@ -95,9 +97,8 @@ fun ContactsScreen(
     ) {
         // TopBar with Back + Search
         Surface(
-            color = mainRed, // M3 Surface uses containerColor for background. This might set content color.
-            // For explicit background, use containerColor = mainRed. Assuming mainRed is background here.
-            elevation = 6.dp
+            containerColor = mainRed,
+            shadowElevation = 6.dp
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
