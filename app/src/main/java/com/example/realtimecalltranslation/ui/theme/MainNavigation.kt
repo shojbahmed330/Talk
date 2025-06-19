@@ -1,222 +1,209 @@
-package com.example.realtimecalltranslation
+package com.example.realtimecalltranslation.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Bundle
 import android.provider.CallLog as AndroidCallLog
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import androidx.navigation.NavType
-import androidx.navigation.compose.*
-import androidx.navigation.navArgument
-import com.amazonaws.regions.Regions
 import com.example.realtimecalltranslation.agora.AgoraManager
-import com.example.realtimecalltranslation.agora.DefaultRtcEngineEventHandler
-import com.example.realtimecalltranslation.aws.S3Uploader
-import androidx.lifecycle.ViewModelProvider
-import com.example.realtimecalltranslation.util.AmazonTranscribeHelper
-import com.example.realtimecalltranslation.util.AudioRecorderHelper
-import com.example.realtimecalltranslation.util.PollyTTSHelper
-import com.example.realtimecalltranslation.ui.CallScreenViewModel
-import com.example.realtimecalltranslation.ui.CallScreenViewModelFactory
-import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
-import com.example.realtimecalltranslation.ui.theme.DialerScreen
-import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
-import com.example.realtimecalltranslation.ui.theme.ContactsScreen
-import com.example.realtimecalltranslation.ui.LoginScreen
-import com.example.realtimecalltranslation.ui.ProfileScreen
-import com.example.realtimecalltranslation.ui.WelcomeScreen
-import com.example.realtimecalltranslation.ui.CallScreen
-import com.example.realtimecalltranslation.ui.theme.RealTimeCallTranslationTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.Color
-import com.example.realtimecalltranslation.ui.theme.*
 import com.example.realtimecalltranslation.ui.theme.CallLog
+import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
 import com.example.realtimecalltranslation.ui.theme.CallType
-import com.example.realtimecalltranslation.ui.Message
 import com.example.realtimecalltranslation.ui.theme.User
-// import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Removed incorrect
-import com.example.realtimecalltranslation.ui.getRealCallLogs // Added correct import
-import kotlinx.coroutines.launch
-import java.io.InputStream
+import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
+import com.example.realtimecalltranslation.ui.theme.DialerScreen
+import com.example.realtimecalltranslation.ui.theme.ContactsScreen
+import com.example.realtimecalltranslation.ui.theme.*
 
-// IMPORTANT: Replace with your actual RapidAPI Key
-const val RAPID_API_KEY_PLACEHOLDER = "YOUR_RAPID_API_KEY"
+@Composable
+fun MainNavigation(
+    callScreenViewModel: CallScreenViewModel, // Added
+    agoraManager: AgoraManager,             // Added
+    token: String?,
+    localIsUsa: Boolean
+    // appId: String, // Removed
+) {
+    var currentScreen by remember { mutableStateOf("history") }
+    var callTo by remember { mutableStateOf<String?>(null) }
+    var messages by remember { mutableStateOf(listOf<Message>()) }
+    var selectedUser by remember { mutableStateOf<User?>(null) }
+    var selectedNav by remember { mutableIntStateOf(0) }
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            RealTimeCallTranslationTheme {
-                val applicationContext = LocalContext.current.applicationContext
-                val navController = rememberNavController()
-                val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-                val agoraAppId = "YOUR_APP_ID"
+    // Demo user & call log, fallback only
+    val demoUsers = listOf(
+        User("1", "Demo User", "017XXXXXXXX", null),
+        User("2", "Has Pic", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
+        User("3", "No Pic", "019XXXXXXXX", null)
+    )
+    val demoCallLogs = listOf(
+        CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "5 min ago"),
+        CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "10 min ago"),
+        CallLog(demoUsers[2], "Outgoing call", CallType.OUTGOING, false, "20 min ago")
+    )
 
-                val awsAccessKey = "YOUR_AWS_ACCESS_KEY"
-                val awsSecretKey = "YOUR_AWS_SECRET_KEY"
-                val s3BucketName = "YOUR_S3_BUCKET_NAME"
-                val s3Region = Regions.US_EAST_1
+    // Permission check
+    val hasPermission = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.READ_CALL_LOG
+    ) == PackageManager.PERMISSION_GRANTED
 
-                val agoraManager = remember {
-                    AgoraManager(applicationContext, agoraAppId, DefaultRtcEngineEventHandler)
-                }
-                LaunchedEffect(key1 = agoraManager) { try { agoraManager.init() } catch (e: Exception) { android.util.Log.e("MainActivity", "Agora init failed: ${e.message}")} }
+    // Real call log fetcher (memoized)
+    val realCallLogs = remember(hasPermission) {
+        if (hasPermission) getRealCallLogs(context) else emptyList()
+    }
 
-                val s3Uploader = remember { S3Uploader(applicationContext, awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
-                LaunchedEffect(key1 = s3Uploader) { try { s3Uploader.initS3Client() } catch (e: Exception) { android.util.Log.e("MainActivity", "S3Uploader init failed: ${e.message}")} }
+    val activeCallLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
+    val activeUsers = activeCallLogs.map { it.user }.distinctBy { it.id }
 
-                val audioRecorderHelper = remember { AudioRecorderHelper(applicationContext) }
-                val amazonTranscribeHelper = remember { AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
-                val pollyHelper = remember { PollyTTSHelper(context = applicationContext, accessKey = awsAccessKey, secretKey = awsSecretKey) }
-
-                val callScreenViewModelFactory = CallScreenViewModelFactory(audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
-                val callScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
-
-                DisposableEffect(Unit) { onDispose { agoraManager.destroy(); pollyHelper.release() } }
-
-                val demoUsers = listOf(
-                    User("1", "Shojib", "017XXXXXXXX", "https://randomuser.me/api/portraits/men/96.jpg"),
-                    User("2", "Sumi", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
-                    User("3", "Prithibi", "019XXXXXXXX", "https://randomuser.me/api/portraits/women/96.jpg"),
-                    User("4", "JibOn", "016XXXXXXXX", "https://randomuser.me/api/portraits/women/2.jpg"),
-                    User("5", "Maa GP", "015XXXXXXXX", "https://randomuser.me/api/portraits/women/26.jpg")
+    // --- Navigation Logic ---
+    when (currentScreen) {
+        "history" -> {
+            CallHistoryScreen(
+                // userList removed, only pass callLogs
+                callLogs = activeCallLogs,
+                onProfile = { user ->
+                    selectedUser = user
+                    currentScreen = "profile"
+                },
+                onCall = { user ->
+                    callTo = user.phone
+                    messages = listOf(
+                        Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
+                        Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
+                    )
+                    currentScreen = "call"
+                },
+                onUserAvatar = { user ->
+                    selectedUser = user
+                    currentScreen = "profile"
+                },
+                onFavourites = {
+                    selectedNav = 0
+                    currentScreen = "favourites"
+                },
+                onDialer = {
+                    selectedNav = 1
+                    currentScreen = "dialer"
+                },
+                onContacts = {
+                    selectedNav = 2
+                    currentScreen = "contacts"
+                },
+                selectedNav = selectedNav,
+                mainRed = mainRed,
+                mainWhite = mainWhite,
+                accentRed = accentRed,
+                lightRed = lightRed
+            )
+        }
+        "dialer" -> DialerScreen(
+            onClose = {
+                selectedNav = 0
+                currentScreen = "history"
+            },
+            mainRed = mainRed,
+            mainWhite = mainWhite
+        )
+        "favourites" -> FavouritesScreen(
+            onBack = {
+                selectedNav = 0
+                currentScreen = "history"
+            },
+            mainRed = mainRed,
+            mainWhite = mainWhite,
+            accentRed = accentRed,
+            lightRed = lightRed
+        )
+        "contacts" -> ContactsScreen(
+            onBack = {
+                selectedNav = 0
+                currentScreen = "history"
+            },
+            mainRed = mainRed,
+            mainWhite = mainWhite,
+            accentRed = accentRed,
+            lightRed = lightRed,
+            mainGreen = mainGreen,
+            lightGreen = lightGreen
+        )
+        "call" -> CallScreen(
+            callScreenViewModel = callScreenViewModel, // Passed from MainNavigation
+            agoraManager = agoraManager,             // Passed from MainNavigation
+            channel = callTo ?: "",
+            token = token,                           // Passed from MainNavigation
+            // appId = appId, // Removed
+            localIsUsa = localIsUsa,                 // Passed from MainNavigation
+            messages = messages,                     // From MainNavigation's state
+            onCallEnd = {
+                selectedNav = 0
+                currentScreen = "history"
+            },
+            mainRed = mainRed,                       // From theme import
+            mainWhite = mainWhite                    // From theme import
+        )
+        "profile" -> {
+            selectedUser?.let { user ->
+                ProfileScreen(
+                    user = user,
+                    callLogs = activeCallLogs.filter { it.user.id == user.id },
+                    onBack = {
+                        selectedNav = 0
+                        currentScreen = "history"
+                    },
+                    onCall = { user2 ->
+                        callTo = user2.phone
+                        messages = listOf(
+                            Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
+                            Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
+                        )
+                        currentScreen = "call"
+                    },
+                    mainRed = mainRed,
+                    mainWhite = mainWhite
                 )
-                val demoCallLogsState = remember { mutableStateListOf<CallLog>().apply{ addAll(demoUsers.mapIndexed { index, user ->
-                    CallLog(user, "Demo call message ${index+1}", if(index % 2 == 0) CallType.INCOMING else CallType.OUTGOING, index == 1, "${(index+1)*5} min ago")
-                }) } }
-
-                val hasPermission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
-                var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
-                LaunchedEffect(hasPermission) {
-                    callLogsFromSource = if (hasPermission) getRealCallLogs(applicationContext) else demoCallLogsState
-                }
-
-                var userToLog by remember { mutableStateOf<User?>(null) }
-                var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
-
-                val callLogsToDisplay = if (callLogsFromSource.isNotEmpty()) callLogsFromSource else demoCallLogsState
-                val usersToDisplay = if (callLogsFromSource.isNotEmpty()) callLogsFromSource.map { it.user }.distinctBy { it.id } else demoUsers
-
-                NavHost(navController, startDestination = "welcome") {
-                    composable("welcome") { WelcomeScreen(onGetStarted = { navController.navigate("login") }) }
-                    composable("login") { LoginScreen(onLogin = { navController.navigate("callhistory") }, onFacebook = {}, onGoogle = {}, onSignUp = {}) }
-
-                    composable("callhistory") {
-                        CallHistoryScreen(
-                            callLogs = callLogsToDisplay,
-                            onProfile = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
-                            onCall = { user -> userToLog = user; navController.navigate("call/${user.phone}") },
-                            // onAddNew = { navController.navigate("dialer") }, // REMOVED as per current task
-                            onUserAvatar = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
-                            onFavourites = { navController.navigate("favourites") },
-                            onDialer = { navController.navigate("dialer") },
-                            onContacts = { navController.navigate("contacts") },
-                            selectedNav = 0,
-                            mainRed = mainRed, mainWhite = mainWhite, accentRed = accentRed, lightRed = lightRed
-                        )
-                    }
-                    composable("favourites") {
-                        FavouritesScreen(
-                            onBack = { navController.navigate("callhistory") { popUpTo("callhistory") { inclusive = true } } },
-                            mainRed = mainRed, mainWhite = mainWhite, accentRed = accentRed, lightRed = lightRed
-                        )
-                    }
-                    composable("contacts") {
-                        ContactsScreen(
-                            onBack = { navController.popBackStack() },
-                            onCallContact = { phoneNumber -> userToLog = usersToDisplay.find{it.phone == phoneNumber}; navController.navigate("call/$phoneNumber") },
-                            mainRed = mainRed, accentRed = accentRed, mainWhite = mainWhite, mainGreen = mainGreen, lightGreen = lightGreen, lightRed = lightRed
-                        )
-                    }
-                    composable(
-                        route = "profile/{userId}",
-                        arguments = listOf(navArgument("userId") { type = NavType.StringType })
-                    ) { backStackEntry ->
-                        val currentUserId = backStackEntry.arguments?.getString("userId")
-                        val userForProfile = usersToDisplay.find { it.id == currentUserId } ?: userToLog?.takeIf { it.id == currentUserId }
-
-                        if (userForProfile != null) {
-                            if (userToLog == null || userToLog?.id != currentUserId) {
-                                userToLog = userForProfile
-                                profileScreenImageDisplayData = userForProfile.profilePicUrl
-                            }
-                            ProfileScreen(
-                                user = userForProfile,
-                                callLogs = callLogsToDisplay.filter { it.user.id == currentUserId },
-                                imageDataSource = profileScreenImageDisplayData, // ADDED BACK
-                                onNameUpdate = { newName -> // ADDED BACK
-                                    callLogsFromSource = callLogsFromSource.map { log ->
-                                        if (log.user.id == currentUserId) { log.copy(user = log.user.copy(name = newName)) } else log
-                                    }
-                                    if (userToLog?.id == currentUserId) { userToLog = userToLog?.copy(name = newName) }
-                                },
-                                onProfilePicUriSelected = { uriString -> // ADDED BACK
-                                    profileScreenImageDisplayData = null
-                                    callLogsFromSource = callLogsFromSource.map { log ->
-                                        if (log.user.id == currentUserId) { log.copy(user = log.user.copy(profilePicUrl = uriString)) } else log
-                                    }
-                                    if (userToLog?.id == currentUserId) { userToLog = userToLog?.copy(profilePicUrl = uriString) }
-                                    if (uriString != null) {
-                                        scope.launch {
-                                            try {
-                                                val inputStream: InputStream? = applicationContext.contentResolver.openInputStream(Uri.parse(uriString))
-                                                profileScreenImageDisplayData = inputStream?.readBytes() ?: uriString
-                                                inputStream?.close()
-                                            } catch (e: Exception) {
-                                                android.util.Log.e("MainActivity", "Error reading image URI: $uriString", e)
-                                                profileScreenImageDisplayData = uriString
-                                            }
-                                        }
-                                    }
-                                },
-                                onBack = { navController.popBackStack() },
-                                onCall = { userToCall -> userToLog = userToCall; navController.navigate("call/${userToCall.phone}") },
-                                mainRed = mainRed,
-                                mainWhite = mainWhite
-                            )
-                        }
-                    }
-                    composable("dialer") {
-                        DialerScreen(
-                            onClose = { navController.popBackStack() },
-                            mainRed = mainRed, mainWhite = mainWhite,
-                            onNavigateToCall = { number ->
-                                userToLog = usersToDisplay.find{it.phone == number} ?: User(id=number, name=number, phone=number)
-                                navController.navigate("call/$number")
-                            }
-                        )
-                    }
-                    composable(
-                        route = "call/{number}",
-                        arguments = listOf(navArgument("number") { type = NavType.StringType })
-                    ) { backStackEntry ->
-                        val number = backStackEntry.arguments?.getString("number") ?: ""
-                        if (userToLog == null || userToLog?.phone != number) {
-                            userToLog = usersToDisplay.find{it.phone == number} ?: User(id=number, name=number, phone=number)
-                        }
-                        CallScreen(
-                            // callScreenViewModel, agoraManager REMOVED
-                            appId = agoraAppId, // ADDED
-                            channel = number,
-                            token = null,
-                            localIsUsa = true,
-                            messages = listOf(
-                                Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
-                                Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
-                            ),
-                            mainRed = mainRed,
-                            mainWhite = mainWhite,
-                            onCallEnd = { navController.popBackStack() }
-                        )
-                    }
-                }
             }
         }
     }
+}
+
+// --- Real Call Log fetcher ---
+fun getRealCallLogs(context: Context): List<CallLog> {
+    val logs = mutableListOf<CallLog>()
+    val resolver = context.contentResolver
+    val cursor = resolver.query(
+        AndroidCallLog.Calls.CONTENT_URI,
+        null, null, null, AndroidCallLog.Calls.DATE + " DESC"
+    )
+    cursor?.use {
+        val numberIdx = it.getColumnIndex(AndroidCallLog.Calls.NUMBER)
+        val typeIdx = it.getColumnIndex(AndroidCallLog.Calls.TYPE)
+        val nameIdx = it.getColumnIndex(AndroidCallLog.Calls.CACHED_NAME)
+        val dateIdx = it.getColumnIndex(AndroidCallLog.Calls.DATE)
+        while (it.moveToNext()) {
+            val number = it.getString(numberIdx)
+            val name = it.getString(nameIdx) ?: number
+            val type = when (it.getInt(typeIdx)) {
+                AndroidCallLog.Calls.INCOMING_TYPE -> CallType.INCOMING
+                AndroidCallLog.Calls.OUTGOING_TYPE -> CallType.OUTGOING
+                AndroidCallLog.Calls.MISSED_TYPE -> CallType.MISSED
+                else -> CallType.MISSED
+            }
+            val time = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", it.getLong(dateIdx)).toString()
+            val user = User(id = number, name = name, phone = number)
+            logs.add(
+                CallLog(
+                    user = user,
+                    message = if (type == CallType.MISSED) "Missed" else type.name,
+                    callType = type,
+                    isMissed = (type == CallType.MISSED),
+                    time = time
+                )
+            )
+        }
+    }
+    return logs
 }
