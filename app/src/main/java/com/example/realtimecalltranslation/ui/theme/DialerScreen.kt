@@ -12,23 +12,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+// import androidx.compose.ui.platform.LocalContext // No longer needed
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.realtimecalltranslation.OutgoingCallActivity
+// import com.example.realtimecalltranslation.OutgoingCallActivity // No longer needed
 
 @Composable
 fun DialerScreen(
     onClose: () -> Unit,
-    mainRed: Color,
-    mainWhite: Color
+    mainRed: Color, // This parameter is not used in the current body, but kept as per signature
+    mainWhite: Color, // This parameter is not used in the current body, but kept as per signature
+    onNavigateToCall: (String) -> Unit // Added new parameter
 ) {
     var phoneNumber by remember { mutableStateOf("") }
-    val context = LocalContext.current
+    // val context = LocalContext.current // No longer needed
 
-    // Professional color palette (you can use mainRed/mainWhite if needed)
+    // Professional color palette
     val dialerBg = Brush.verticalGradient(
         colors = listOf(Color(0xFFf7fafc), Color(0xFFe3e5ea))
     )
@@ -38,11 +39,11 @@ fun DialerScreen(
     val callBtnTextColor = Color.White
     val iconColor = Color(0xFF4B5563)
 
-    fun goToOutgoingCallActivity(number: String) {
-        val intent = Intent(context, OutgoingCallActivity::class.java)
-        intent.putExtra("CALLEE_NUMBER", number)
-        context.startActivity(intent)
-    }
+    // fun goToOutgoingCallActivity(number: String) { // Removed this function
+    //     val intent = Intent(context, OutgoingCallActivity::class.java)
+    //     intent.putExtra("CALLEE_NUMBER", number)
+    //     context.startActivity(intent)
+    // }
 
     Column(
         modifier = Modifier
@@ -131,7 +132,7 @@ fun DialerScreen(
 
         // Call Button
         Button(
-            onClick = { if (phoneNumber.isNotEmpty()) goToOutgoingCallActivity(phoneNumber) },
+            onClick = { if (phoneNumber.isNotEmpty()) onNavigateToCall(phoneNumber) }, // Changed to use onNavigateToCall
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 70.dp)
