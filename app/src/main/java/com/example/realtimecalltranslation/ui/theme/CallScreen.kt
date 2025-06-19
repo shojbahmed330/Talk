@@ -2,7 +2,8 @@ package com.example.realtimecalltranslation.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import android.Manifest
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -10,6 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.realtimecalltranslation.agora.AgoraManager
+import com.example.realtimecalltranslation.ui.CallScreenViewModel // Added ViewModel import
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+// Removed unused imports like S3Uploader, AudioRecorderHelper, etc. as they are now in ViewModel
+// Removed kotlinx.coroutines.launch, File, UUID as direct CallScreen imports
 
 data class Message(
     val fromUsa: Boolean,
@@ -17,28 +25,81 @@ data class Message(
     val translated: String
 )
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CallScreen(
+    callScreenViewModel: CallScreenViewModel, // Use ViewModel
+    agoraManager: AgoraManager, // Kept for direct lifecycle management for now
     channel: String,
     token: String?,
-    appId: String,
     localIsUsa: Boolean,
     onCallEnd: () -> Unit,
     messages: List<Message>,
     mainRed: Color,
     mainWhite: Color
 ) {
+    // Read state from ViewModel
+    val isRecording = callScreenViewModel.isRecording
+    val transcriptionStatus = callScreenViewModel.transcriptionStatus
+    val transcribedText = callScreenViewModel.transcribedText
+    val translatedText = callScreenViewModel.translatedText
+    val errorMessage = callScreenViewModel.errorMessage
+
+    // Permission state for RECORD_AUDIO - remains in Composable as it needs recomposition
+    val recordAudioPermissionState = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+
+    // Agora Voice Call Logic & TTS/Recording cleanup - tied to Composable lifecycle
+    LaunchedEffect(key1 = channel, key2 = token) {
+        // Consider moving join/leave to ViewModel if agoraManager is also primarily managed by it
+        agoraManager.joinChannel(channel, token, 0)
+    }
+
+    DisposableEffect(key1 = channel) {
+        onDispose {
+            agoraManager.leaveChannel()
+            callScreenViewModel.stopOngoingTTS()
+            callScreenViewModel.stopOngoingRecordingAndCleanup() // Cleanup if screen is disposed while recording
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("In Call: $channel", style = MaterialTheme.typography.titleLarge, color = mainRed)
         Spacer(Modifier.height(8.dp))
-        // Conversation bubbles
+
+        Text("One-Way STT (Proof of Concept)", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+
+        Button(onClick = {
+            if (!recordAudioPermissionState.status.isGranted) {
+                recordAudioPermissionState.launchPermissionRequest()
+            } else {
+                callScreenViewModel.handleRecordAndTranscribePressed()
+            }
+        }) {
+            Text(if (isRecording) "Stop Recording & Transcribe" else "Record & Transcribe")
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Status: $transcriptionStatus")
+        if (transcribedText.isNotEmpty()) {
+            Text("Transcription: $transcribedText", style = MaterialTheme.typography.bodyMedium)
+        }
+        if (translatedText.isNotEmpty()) {
+            Text("Translation (en->bn): $translatedText", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+        }
+        if (errorMessage != null) {
+            Text("Error: $errorMessage", color = Color.Red, style = MaterialTheme.typography.bodySmall)
+        }
+
+        Spacer(Modifier.weight(0.1f))
+
         Column(
             modifier = Modifier
-                .weight(1f)
+                .weight(0.9f) // Adjusted weight
                 .fillMaxWidth()
         ) {
             messages.forEach { msg ->
@@ -74,8 +135,15 @@ fun CallScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = { onCallEnd() },
+        Button( // End Call Button (existing)
+            onClick = {
+                pollyHelper.stop() // Stop TTS on call end
+                if (isRecording) { // Stop recording if active when ending call
+                    audioRecorderHelper.stopRecording()
+                    isRecording = false
+                }
+                onCallEnd()
+            },
             colors = ButtonDefaults.buttonColors(
                 containerColor = mainRed,
                 contentColor = mainWhite
