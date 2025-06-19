@@ -4,7 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.util.Log // Added import
+import android.util.Log
+import android.net.Uri // Added
+import java.io.ByteArrayOutputStream // Added
+import kotlinx.coroutines.CoroutineScope // Added
+import kotlinx.coroutines.launch // Added
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
@@ -48,6 +52,9 @@ class MainActivity : ComponentActivity() {
             RealTimeCallTranslationTheme {
                 val navController = rememberNavController()
                 var callHistoryRecomposeKey by remember { mutableStateOf(0) }
+
+                var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) } // Added
+                val scope = rememberCoroutineScope() // Added
 
                 var numberToLog by remember { mutableStateOf<String?>(null) }
                 var userToLog by remember { mutableStateOf<User?>(null) }
@@ -188,6 +195,9 @@ class MainActivity : ComponentActivity() {
                         val userId = backStackEntry.arguments?.getString("userId") ?: ""
                         val user = usersToDisplay.find { it.id == userId }
                         if (user != null) {
+                            LaunchedEffect(user.profilePicUrl) { // Keyed to the specific URL
+                                profileScreenImageDisplayData = user.profilePicUrl
+                            }
                             ProfileScreen(
                                 user = user,
                                 callLogs = finalCallLogsToDisplay.filter { it.user.id == user.id },
@@ -201,13 +211,12 @@ class MainActivity : ComponentActivity() {
                                 onNameUpdate = { newName ->
                                     val currentUserId = backStackEntry.arguments?.getString("userId")
                                     if (currentUserId != null) {
+                                        // Existing name update logic...
                                         if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
                                             callLogsFromSource = callLogsFromSource.map { log ->
                                                 if (log.user.id == currentUserId) {
                                                     log.copy(user = log.user.copy(name = newName))
-                                                } else {
-                                                    log
-                                                }
+                                                } else { log }
                                             }
                                         }
                                         if (userToLog?.id == currentUserId) {
@@ -215,23 +224,63 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 },
-                                onProfilePicUriSelected = { uriString ->
+                                onProfilePicUriSelected = { uriStr ->
                                     val currentUserId = backStackEntry.arguments?.getString("userId")
-                                    if (currentUserId != null && uriString != null) {
-                                        if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
-                                            callLogsFromSource = callLogsFromSource.map { log ->
-                                                if (log.user.id == currentUserId) {
-                                                    log.copy(user = log.user.copy(profilePicUrl = uriString))
-                                                } else {
-                                                    log
+                                    if (currentUserId != null) {
+                                        // 1. Update data model with URI string
+                                        if (uriStr != null) {
+                                            if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
+                                                callLogsFromSource = callLogsFromSource.map { log ->
+                                                    if (log.user.id == currentUserId) {
+                                                        log.copy(user = log.user.copy(profilePicUrl = uriStr))
+                                                    } else { log }
                                                 }
                                             }
+                                            if (userToLog?.id == currentUserId) {
+                                                userToLog = userToLog?.copy(profilePicUrl = uriStr)
+                                            }
+                                        } else { // URI is null (picture removed)
+                                            if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
+                                                callLogsFromSource = callLogsFromSource.map { log ->
+                                                    if (log.user.id == currentUserId) {
+                                                        log.copy(user = log.user.copy(profilePicUrl = null))
+                                                    } else { log }
+                                                }
+                                            }
+                                            if (userToLog?.id == currentUserId) {
+                                                userToLog = userToLog?.copy(profilePicUrl = null)
+                                            }
                                         }
-                                        if (userToLog?.id == currentUserId) {
-                                            userToLog = userToLog?.copy(profilePicUrl = uriString)
+
+                                        // 2. Attempt to convert URI to ByteArray for immediate display
+                                        if (uriStr != null) {
+                                            scope.launch {
+                                                Log.d("MainActivityByteReader", "Attempting to read/convert URI: $uriStr")
+                                                val byteArray = try {
+                                                    withContext(Dispatchers.IO) {
+                                                        localContext.contentResolver.openInputStream(Uri.parse(uriStr))?.use { inputStream ->
+                                                            val byteArrayOutputStream = ByteArrayOutputStream()
+                                                            inputStream.copyTo(byteArrayOutputStream)
+                                                            byteArrayOutputStream.toByteArray()
+                                                        }
+                                                    }
+                                                } catch (e: Exception) {
+                                                    Log.e("MainActivityByteReader", "Failed to read/convert URI to ByteArray: $uriStr", e)
+                                                    null
+                                                }
+                                                if (byteArray != null) {
+                                                    Log.d("MainActivityByteReader", "Successfully converted URI to ByteArray, size: ${byteArray.size}")
+                                                    profileScreenImageDisplayData = byteArray
+                                                } else {
+                                                    profileScreenImageDisplayData = uriStr // Fallback to URI string
+                                                }
+                                            }
+                                        } else {
+                                            profileScreenImageDisplayData = null // Clear display data if URI is null
                                         }
                                     }
                                 },
+                                imageDataSource = profileScreenImageDisplayData, // Pass the new state
                                 mainRed = mainRed,
                                 mainWhite = mainWhite
                             )

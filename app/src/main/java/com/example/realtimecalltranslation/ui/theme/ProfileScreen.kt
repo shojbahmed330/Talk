@@ -3,27 +3,32 @@ package com.example.realtimecalltranslation.ui // Ensure correct package
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable // Added Import
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions // Added Import
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhotoCamera // Added
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.activity.compose.rememberLauncherForActivityResult // Added
-import androidx.activity.result.contract.ActivityResultContracts // Added
-import android.net.Uri // Added
-import android.util.Log // Added
-import androidx.compose.material.icons.filled.BrokenImage // Added
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import android.util.Log
+import androidx.compose.material.icons.filled.BrokenImage
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,17 +37,21 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage // Using AsyncImage
+import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.request.ImageRequest
+import coil.size.Size
 import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallLogRow
 import com.example.realtimecalltranslation.ui.theme.User
 
-@OptIn(ExperimentalMaterial3Api::class) // Added OptIn
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     user: User,
@@ -52,12 +61,17 @@ fun ProfileScreen(
     mainRed: Color,
     mainWhite: Color,
     onNameUpdate: (newName: String) -> Unit,
-    onProfilePicUriSelected: (uriString: String?) -> Unit // Added
+    onProfilePicUriSelected: (uriString: String?) -> Unit,
+    imageDataSource: Any? // New parameter
 ) {
-    val imagePickerLauncher = rememberLauncherForActivityResult( // Added
+    Log.d("ProfileScreenInit", "Composing ProfileScreen for User: ${user.name}, Initial imageDataSource: $imageDataSource")
+
+    // Image picker launcher now only calls the callback
+    val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        onProfilePicUriSelected(uri?.toString())
+        Log.d("ProfileScreenPicker", "Image URI selected by picker: ${uri?.toString()}")
+        onProfilePicUriSelected(uri?.toString()) // Pass URI string up
     }
 
     var isEditingName by rememberSaveable { mutableStateOf(false) }
@@ -76,7 +90,7 @@ fun ProfileScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Top bar
+            // Top bar (remains the same)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -122,31 +136,53 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Box( // This new Box is for the avatar itself and the edit icon overlay
+                Box( // This Box is for the avatar itself and the edit icon overlay
                     modifier = Modifier
-                        .size(110.dp) // Original size
-                        .clickable { imagePickerLauncher.launch("image/*") } // Make clickable
+                        .size(110.dp)
+                        .clickable { imagePickerLauncher.launch("image/*") }
                 ) {
-                    // Existing AsyncImage and fallback Icon logic for avatar display:
-                    if (!user.profilePicUrl.isNullOrBlank()) {
+                    // Use imageDataSource for AsyncImage
+                    if (imageDataSource is ByteArray || (imageDataSource is String && imageDataSource.isNotBlank())) {
                         AsyncImage(
-                            model = user.profilePicUrl,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(imageDataSource) // Use the passed imageDataSource
+                                .crossfade(true)
+                                .size(Size(256, 256))
+                                .build(),
                             contentDescription = "User Avatar",
                             modifier = Modifier
-                                .fillMaxSize() // Fill the inner Box
+                                .fillMaxSize()
                                 .clip(CircleShape)
-                            .background(mainWhite, CircleShape) // Background for the AsyncImage area itself
+                                .background(mainWhite, CircleShape)
                                 .border(4.dp, mainWhite, CircleShape),
-                        contentScale = ContentScale.Crop,
-                        onError = { errorState ->
-                            Log.e("ProfileScreenImgLoad", "Failed to load image: ${user.profilePicUrl}", errorState.result.throwable)
-                        }
-                        // Removed placeholder and error composable lambdas
-                    )
-                } else {
-                    Box( // Fallback Box
+                            contentScale = ContentScale.Crop,
+                            onState = { state: AsyncImagePainter.State ->
+                                val modelTypeForLog = if (imageDataSource is ByteArray) {
+                                    "ByteArray[size=${imageDataSource.size}]"
+                                } else {
+                                    imageDataSource?.toString() ?: "null"
+                                }
+                                when (state) {
+                                    is AsyncImagePainter.State.Loading -> {
+                                        Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
+                                    }
+                                    is AsyncImagePainter.State.Success -> {
+                                        Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
+                                    }
+                                    is AsyncImagePainter.State.Error -> {
+                                        Log.e("ProfileScreenImgLoad", "Error (via onState) with Model: $modelTypeForLog", state.result.throwable)
+                                    }
+                                    is AsyncImagePainter.State.Empty -> {
+                                        Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
+                                    }
+                                }
+                            }
+                        )
+                    } else {
+                        // Fallback Person Icon
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize() // Fill the inner Box
+                                .fillMaxSize()
                                 .clip(CircleShape)
                                 .background(mainWhite)
                                 .border(4.dp, mainWhite, CircleShape),
@@ -155,7 +191,7 @@ fun ProfileScreen(
                             Icon(
                                 imageVector = Icons.Filled.Person,
                                 contentDescription = "Default Avatar",
-                                modifier = Modifier.size(70.dp), // Original size
+                                modifier = Modifier.size(70.dp),
                                 tint = mainRed
                             )
                         }
@@ -176,7 +212,7 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Name & Phone
+            // Name & Phone section (remains the same)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -270,6 +306,7 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(24.dp))
 
+            // Call History Title (remains the same)
             Text(
                 text = "Call History",
                 fontWeight = FontWeight.Medium,
@@ -278,6 +315,7 @@ fun ProfileScreen(
                 modifier = Modifier.padding(start = 24.dp, bottom = 6.dp, top = 8.dp)
             )
 
+            // Call log list (remains the same)
             if (callLogs.isNotEmpty()) {
                 Surface(
                     color = mainWhite.copy(alpha = 0.90f),
