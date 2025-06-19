@@ -1,8 +1,8 @@
 package com.example.realtimecalltranslation
 
 import android.Manifest
-// import android.content.Context // Not directly used, LocalContext.current.applicationContext is used
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.provider.CallLog as AndroidCallLog
 import androidx.activity.ComponentActivity
@@ -34,15 +34,14 @@ import com.example.realtimecalltranslation.ui.CallScreen
 import com.example.realtimecalltranslation.ui.theme.RealTimeCallTranslationTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-// Import all from theme, including colors like mainRed, accentRed etc.
 import com.example.realtimecalltranslation.ui.theme.*
 import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.Message
 import com.example.realtimecalltranslation.ui.theme.User
-// Removed: import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
-import com.example.realtimecalltranslation.ui.getRealCallLogs // Corrected import
-
+import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+import kotlinx.coroutines.launch
+import java.io.InputStream
 
 // IMPORTANT: Replace with your actual RapidAPI Key
 const val RAPID_API_KEY_PLACEHOLDER = "YOUR_RAPID_API_KEY"
@@ -54,6 +53,7 @@ class MainActivity : ComponentActivity() {
             RealTimeCallTranslationTheme {
                 val applicationContext = LocalContext.current.applicationContext
                 val navController = rememberNavController()
+                val scope = rememberCoroutineScope()
 
                 val agoraAppId = "YOUR_APP_ID"
 
@@ -65,59 +65,19 @@ class MainActivity : ComponentActivity() {
                 val agoraManager = remember {
                     AgoraManager(applicationContext, agoraAppId, DefaultRtcEngineEventHandler)
                 }
+                LaunchedEffect(key1 = agoraManager) { try { agoraManager.init() } catch (e: Exception) { android.util.Log.e("MainActivity", "Agora init failed: ${e.message}")} }
 
-                LaunchedEffect(key1 = agoraManager) {
-                    try {
-                        agoraManager.init()
-                    } catch (e: Exception) {
-                        android.util.Log.e("MainActivity", "Agora initialization failed: ${e.message}")
-                    }
-                }
+                val s3Uploader = remember { S3Uploader(applicationContext, awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
+                LaunchedEffect(key1 = s3Uploader) { try { s3Uploader.initS3Client() } catch (e: Exception) { android.util.Log.e("MainActivity", "S3Uploader init failed: ${e.message}")} }
 
-                val s3Uploader = remember {
-                    S3Uploader(applicationContext, awsAccessKey, awsSecretKey, s3BucketName, s3Region)
-                }
+                val audioRecorderHelper = remember { AudioRecorderHelper(applicationContext) }
+                val amazonTranscribeHelper = remember { AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
+                val pollyHelper = remember { PollyTTSHelper(context = applicationContext, accessKey = awsAccessKey, secretKey = awsSecretKey) }
 
-                LaunchedEffect(key1 = s3Uploader) {
-                    try {
-                        s3Uploader.initS3Client()
-                    } catch (e: Exception) {
-                        android.util.Log.e("MainActivity", "S3Uploader initialization failed: ${e.message}")
-                    }
-                }
-
-                val audioRecorderHelper = remember {
-                    AudioRecorderHelper(applicationContext)
-                }
-
-                val amazonTranscribeHelper = remember {
-                    AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region)
-                }
-
-                val pollyHelper = remember {
-                    PollyTTSHelper(
-                        context = applicationContext,
-                        accessKey = awsAccessKey,
-                        secretKey = awsSecretKey
-                    )
-                }
-
-                val callScreenViewModelFactory = CallScreenViewModelFactory(
-                    audioRecorderHelper,
-                    s3Uploader,
-                    amazonTranscribeHelper,
-                    pollyHelper,
-                    agoraManager,
-                    RAPID_API_KEY_PLACEHOLDER
-                )
+                val callScreenViewModelFactory = CallScreenViewModelFactory(audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
                 val callScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
-                DisposableEffect(Unit) {
-                    onDispose {
-                        agoraManager.destroy()
-                        pollyHelper.release()
-                    }
-                }
+                DisposableEffect(Unit) { onDispose { agoraManager.destroy(); pollyHelper.release() } }
 
                 val demoUsers = listOf(
                     User("1", "Shojib", "017XXXXXXXX", "https://randomuser.me/api/portraits/men/96.jpg"),
@@ -126,107 +86,108 @@ class MainActivity : ComponentActivity() {
                     User("4", "JibOn", "016XXXXXXXX", "https://randomuser.me/api/portraits/women/2.jpg"),
                     User("5", "Maa GP", "015XXXXXXXX", "https://randomuser.me/api/portraits/women/26.jpg")
                 )
-                val demoCallLogs = listOf(
-                    CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "12 min ago"),
-                    CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "10 min ago"),
-                    CallLog(demoUsers[2], "Hello!", CallType.OUTGOING, false, "8 min ago"),
-                    CallLog(demoUsers[3], "Test call", CallType.INCOMING, false, "5 min ago"),
-                    CallLog(demoUsers[4], "Another call", CallType.OUTGOING, false, "2 min ago")
-                )
+                val demoCallLogsState = remember { mutableStateListOf<CallLog>().apply{ addAll(demoUsers.mapIndexed { index, user ->
+                    CallLog(user, "Demo call message ${index+1}", if(index % 2 == 0) CallType.INCOMING else CallType.OUTGOING, index == 1, "${(index+1)*5} min ago")
+                }) } }
 
-                val hasPermission = ContextCompat.checkSelfPermission(
-                    applicationContext, Manifest.permission.READ_CALL_LOG
-                ) == PackageManager.PERMISSION_GRANTED
-
-                val realCallLogs = remember(hasPermission) {
-                    if (hasPermission) getRealCallLogs(applicationContext) else emptyList<CallLog>()
+                val hasPermission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
+                var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
+                LaunchedEffect(hasPermission) {
+                    callLogsFromSource = if (hasPermission) getRealCallLogs(applicationContext) else demoCallLogsState
                 }
 
-                val users = if (realCallLogs.isNotEmpty()) realCallLogs.map { it.user }.distinctBy { it.id } else demoUsers
-                val callLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
+                var userToLog by remember { mutableStateOf<User?>(null) }
+                var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
+
+                val callLogsToDisplay = if (callLogsFromSource.isNotEmpty()) callLogsFromSource else demoCallLogsState
+                val usersToDisplay = if (callLogsFromSource.isNotEmpty()) callLogsFromSource.map { it.user }.distinctBy { it.id } else demoUsers
 
                 NavHost(navController, startDestination = "welcome") {
-                    composable("welcome") {
-                        WelcomeScreen(
-                            onGetStarted = { navController.navigate("login") }
-                        )
-                    }
-                    composable("login") {
-                        LoginScreen(
-                            onLogin = { navController.navigate("callhistory") },
-                            onFacebook = { /* Facebook login logic */ },
-                            onGoogle = { /* Google login logic */ },
-                            onSignUp = { /* Signup logic */ }
-                        )
-                    }
+                    composable("welcome") { WelcomeScreen(onGetStarted = { navController.navigate("login") }) }
+                    composable("login") { LoginScreen(onLogin = { navController.navigate("callhistory") }, onFacebook = {}, onGoogle = {}, onSignUp = {}) }
+
                     composable("callhistory") {
                         CallHistoryScreen(
-                            callLogs = callLogs,
-                            onProfile = { user ->
-                                navController.navigate("profile/${user.id}")
-                            },
-                            onCall = { user ->
-                                navController.navigate("call/${user.phone}")
-                            },
-                            onAddNew = {
-                                navController.navigate("dialer")
-                            },
-                            onUserAvatar = { user ->
-                                navController.navigate("profile/${user.id}")
-                            },
-                            onFavourites = {
-                                navController.navigate("favourites")
-                            },
-                            onDialer = {
-                                navController.navigate("dialer")
-                            },
-                            onContacts = {
-                                navController.navigate("contacts")
-                            },
+                            callLogs = callLogsToDisplay,
+                            onProfile = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
+                            onCall = { user -> userToLog = user; navController.navigate("call/${user.phone}") },
+                            onAddNew = { navController.navigate("dialer") }, // Ensured onAddNew is present
+                            onUserAvatar = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
+                            onFavourites = { navController.navigate("favourites") },
+                            onDialer = { navController.navigate("dialer") },
+                            onContacts = { navController.navigate("contacts") },
                             selectedNav = 0,
-                            mainRed = mainRed,
-                            mainWhite = mainWhite,
-                            accentRed = accentRed,
-                            lightRed = lightRed
+                            mainRed = mainRed, mainWhite = mainWhite, accentRed = accentRed, lightRed = lightRed
                         )
                     }
                     composable("favourites") {
                         FavouritesScreen(
                            onBack = { navController.navigate("callhistory") { popUpTo("callhistory") { inclusive = true } } },
-                           mainRed = mainRed,
-                           mainWhite = mainWhite,
-                           accentRed = accentRed,
-                           lightRed = lightRed
+                           mainRed = mainRed, mainWhite = mainWhite, accentRed = accentRed, lightRed = lightRed
                         )
                     }
                     composable("contacts") {
                         ContactsScreen(
                             onBack = { navController.popBackStack() },
-                            onCallContact = { phoneNumber ->
-                                navController.navigate("call/$phoneNumber")
-                            },
-                            mainRed = mainRed,
-                            accentRed = accentRed,
-                            mainWhite = mainWhite,
-                            mainGreen = mainGreen,
-                            lightGreen = lightGreen,
-                            lightRed = lightRed
+                            onCallContact = { phoneNumber -> userToLog = usersToDisplay.find{it.phone == phoneNumber}; navController.navigate("call/$phoneNumber") },
+                            mainRed = mainRed, accentRed = accentRed, mainWhite = mainWhite, mainGreen = mainGreen, lightGreen = lightGreen, lightRed = lightRed
                         )
                     }
                     composable(
                         route = "profile/{userId}",
                         arguments = listOf(navArgument("userId") { type = NavType.StringType })
                     ) { backStackEntry ->
-                        val userId = backStackEntry.arguments?.getString("userId") ?: ""
-                        val user = users.find { it.id == userId }
-                        if (user != null) {
+                        val currentUserId = backStackEntry.arguments?.getString("userId")
+                        val userForProfile = usersToDisplay.find { it.id == currentUserId } ?: userToLog?.takeIf { it.id == currentUserId }
+
+                        if (userForProfile != null) {
+                            if (userToLog == null || userToLog?.id != currentUserId) {
+                                userToLog = userForProfile
+                                profileScreenImageDisplayData = userForProfile.profilePicUrl
+                            }
                             ProfileScreen(
-                                user = user,
-                                callLogs = callLogs.filter { it.user.id == user.id },
-                                onBack = { navController.popBackStack() },
-                                onCall = { userToCall ->
-                                    navController.navigate("call/${userToCall.phone}")
+                                user = userForProfile,
+                                callLogs = callLogsToDisplay.filter { it.user.id == currentUserId },
+                                imageDataSource = profileScreenImageDisplayData, // Correctly passed
+                                onNameUpdate = { newName -> // Correctly passed with logic
+                                    // This logic updates the mutable callLogsFromSource
+                                    callLogsFromSource = callLogsFromSource.map { log ->
+                                        if (log.user.id == currentUserId) {
+                                            log.copy(user = log.user.copy(name = newName))
+                                        } else log
+                                    }
+                                    // Also update userToLog if it's the one being edited
+                                    if (userToLog?.id == currentUserId) {
+                                        userToLog = userToLog?.copy(name = newName)
+                                    }
                                 },
+                                onProfilePicUriSelected = { uriString -> // Correctly passed with logic
+                                    profileScreenImageDisplayData = null // Reset for immediate UI feedback
+                                    callLogsFromSource = callLogsFromSource.map { log ->
+                                        if (log.user.id == currentUserId) {
+                                            log.copy(user = log.user.copy(profilePicUrl = uriString))
+                                        } else log
+                                    }
+                                    if (userToLog?.id == currentUserId) {
+                                        userToLog = userToLog?.copy(profilePicUrl = uriString)
+                                    }
+
+                                    if (uriString != null) {
+                                        scope.launch {
+                                            try {
+                                                val inputStream: InputStream? = applicationContext.contentResolver.openInputStream(Uri.parse(uriString))
+                                                val byteArray = inputStream?.readBytes()
+                                                inputStream?.close()
+                                                profileScreenImageDisplayData = byteArray ?: uriString
+                                            } catch (e: Exception) {
+                                                android.util.Log.e("MainActivity", "Error reading image URI: $uriString", e)
+                                                profileScreenImageDisplayData = uriString
+                                            }
+                                        }
+                                    }
+                                },
+                                onBack = { navController.popBackStack() },
+                                onCall = { userToCall -> userToLog = userToCall; navController.navigate("call/${userToCall.phone}") },
                                 mainRed = mainRed,
                                 mainWhite = mainWhite
                             )
@@ -235,9 +196,9 @@ class MainActivity : ComponentActivity() {
                     composable("dialer") {
                         DialerScreen(
                             onClose = { navController.popBackStack() },
-                            mainRed = mainRed,
-                            mainWhite = mainWhite,
+                            mainRed = mainRed, mainWhite = mainWhite,
                             onNavigateToCall = { number ->
+                                userToLog = usersToDisplay.find{it.phone == number} ?: User(id=number, name=number, phone=number)
                                 navController.navigate("call/$number")
                             }
                         )
@@ -247,23 +208,19 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("number") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
+                        if (userToLog == null || userToLog?.phone != number) {
+                             userToLog = usersToDisplay.find{it.phone == number} ?: User(id=number, name=number, phone=number)
+                        }
                         CallScreen(
-                            callScreenViewModel = callScreenViewModel,
-                            agoraManager = agoraManager,
+                            // callScreenViewModel = callScreenViewModel, // Removed
+                            // agoraManager = agoraManager, // Removed
+                            appId = agoraAppId, // Added
                             channel = number,
                             token = null,
                             localIsUsa = true,
                             messages = listOf(
-                                Message(
-                                    fromUsa = true,
-                                    original = "How are you?",
-                                    translated = "কেমন আছো?"
-                                ),
-                                Message(
-                                    fromUsa = false,
-                                    original = "Ami bhalo achi.",
-                                    translated = "I am fine."
-                                )
+                                Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
+                                Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
                             ),
                             mainRed = mainRed,
                             mainWhite = mainWhite,
