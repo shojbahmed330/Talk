@@ -62,16 +62,15 @@ fun ProfileScreen(
     mainWhite: Color,
     onNameUpdate: (newName: String) -> Unit,
     onProfilePicUriSelected: (uriString: String?) -> Unit,
-    imageDataSource: Any? // New parameter
+    imageDataSource: Any?
 ) {
     Log.d("ProfileScreenInit", "Composing ProfileScreen for User: ${user.name}, Initial imageDataSource: $imageDataSource")
 
-    // Image picker launcher now only calls the callback
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         Log.d("ProfileScreenPicker", "Image URI selected by picker: ${uri?.toString()}")
-        onProfilePicUriSelected(uri?.toString()) // Pass URI string up
+        onProfilePicUriSelected(uri?.toString())
     }
 
     var isEditingName by rememberSaveable { mutableStateOf(false) }
@@ -90,7 +89,7 @@ fun ProfileScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Top bar (remains the same)
+            // Top bar
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -132,87 +131,91 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Centered Avatar
-            Box( // This Box is for centering
+            Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                Box( // This Box is for the avatar itself and the edit icon overlay
+                Box(
                     modifier = Modifier
                         .size(110.dp)
                         .clickable { imagePickerLauncher.launch("image/*") }
                 ) {
-                    // Use imageDataSource for AsyncImage
-                    if (imageDataSource is ByteArray || (imageDataSource is String && imageDataSource.isNotBlank())) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(imageDataSource) // Use the passed imageDataSource
-                                .crossfade(true)
-                                .size(Size(256, 256))
-                                .build(),
-                            contentDescription = "User Avatar",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(mainWhite, CircleShape)
-                                .border(4.dp, mainWhite, CircleShape),
-                            contentScale = ContentScale.Crop,
-                            onState = { state: AsyncImagePainter.State ->
-                                val modelTypeForLog = if (imageDataSource is ByteArray) {
-                                    "ByteArray[size=${imageDataSource.size}]"
-                                } else {
-                                    imageDataSource?.toString() ?: "null"
+                    key(imageDataSource) { // ***** KEY BLOCK ADDED *****
+                        Box(modifier = Modifier.fillMaxSize()) { // Inner Box for content + overlay
+                            if (imageDataSource is ByteArray || (imageDataSource is String && imageDataSource.isNotBlank())) {
+                                val imageRequest = if (imageDataSource is ByteArray) {
+                                    ImageRequest.Builder(LocalContext.current)
+                                        .data(imageDataSource)
+                                        .size(Size(256, 256)) // Explicit size for byte array
+                                        // No .crossfade(true) for ByteArray for this test
+                                        .build()
+                                } else { // Assumed to be String URI or other Coil-compatible model
+                                    ImageRequest.Builder(LocalContext.current)
+                                        .data(imageDataSource)
+                                        .crossfade(true) // Keep crossfade for URLs/other types
+                                        .size(Size(256, 256)) // Explicit size
+                                        .build()
                                 }
-                                when (state) {
-                                    is AsyncImagePainter.State.Loading -> {
-                                        Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
+                                AsyncImage(
+                                    model = imageRequest, // Use the conditionally built request
+                                    contentDescription = "User Avatar",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(mainWhite, CircleShape)
+                                        .border(4.dp, mainWhite, CircleShape),
+                                    contentScale = ContentScale.Crop,
+                                    onState = { state: AsyncImagePainter.State ->
+                                        val modelTypeForLog = if (imageDataSource is ByteArray) {
+                                            "ByteArray[size=${imageDataSource.size}]"
+                                        } else {
+                                            imageDataSource?.toString() ?: "null"
+                                        }
+                                        when (state) {
+                                            is AsyncImagePainter.State.Loading -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
+                                            is AsyncImagePainter.State.Success -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
+                                            is AsyncImagePainter.State.Error -> Log.e("ProfileScreenImgLoad", "Error (via onState) with Model: $modelTypeForLog", state.result.throwable)
+                                            is AsyncImagePainter.State.Empty -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
+                                        }
                                     }
-                                    is AsyncImagePainter.State.Success -> {
-                                        Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
-                                    }
-                                    is AsyncImagePainter.State.Error -> {
-                                        Log.e("ProfileScreenImgLoad", "Error (via onState) with Model: $modelTypeForLog", state.result.throwable)
-                                    }
-                                    is AsyncImagePainter.State.Empty -> {
-                                        Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
-                                    }
+                                )
+                            } else {
+                                // Fallback Person Icon
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                        .background(mainWhite)
+                                        .border(4.dp, mainWhite, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Person,
+                                        contentDescription = "Default Avatar",
+                                        modifier = Modifier.size(70.dp),
+                                        tint = mainRed
+                                    )
                                 }
                             }
-                        )
-                    } else {
-                        // Fallback Person Icon
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(mainWhite)
-                                .border(4.dp, mainWhite, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
+                            // Edit Icon Overlay (inside key block)
                             Icon(
-                                imageVector = Icons.Filled.Person,
-                                contentDescription = "Default Avatar",
-                                modifier = Modifier.size(70.dp),
-                                tint = mainRed
+                                imageVector = Icons.Filled.PhotoCamera,
+                                contentDescription = "Change Picture",
+                                tint = mainWhite.copy(alpha = 0.9f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(30.dp)
+                                    .background(mainRed.copy(alpha = 0.7f), CircleShape)
+                                    .padding(4.dp)
                             )
-                        }
-                    }
-                    // Edit Icon Overlay
-                    Icon(
-                        imageVector = Icons.Filled.PhotoCamera,
-                        contentDescription = "Change Picture",
-                        tint = mainWhite.copy(alpha = 0.9f),
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(30.dp)
-                            .background(mainRed.copy(alpha = 0.7f), CircleShape)
-                            .padding(4.dp)
-                    )
+                        } // ***** END INNER BOX *****
+                    } // ***** END KEY BLOCK *****
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Name & Phone section (remains the same)
+            // Name & Phone
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -306,7 +309,6 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Call History Title (remains the same)
             Text(
                 text = "Call History",
                 fontWeight = FontWeight.Medium,
@@ -315,7 +317,6 @@ fun ProfileScreen(
                 modifier = Modifier.padding(start = 24.dp, bottom = 6.dp, top = 8.dp)
             )
 
-            // Call log list (remains the same)
             if (callLogs.isNotEmpty()) {
                 Surface(
                     color = mainWhite.copy(alpha = 0.90f),

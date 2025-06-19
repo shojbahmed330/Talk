@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
                         val userId = backStackEntry.arguments?.getString("userId") ?: ""
                         val user = usersToDisplay.find { it.id == userId }
                         if (user != null) {
-                            LaunchedEffect(user.profilePicUrl) { // Keyed to the specific URL
+                            LaunchedEffect(user.id) { // Keyed to user.id
                                 profileScreenImageDisplayData = user.profilePicUrl
                             }
                             ProfileScreen(
@@ -227,66 +227,61 @@ class MainActivity : ComponentActivity() {
                                 onProfilePicUriSelected = { uriStr ->
                                     val currentUserId = backStackEntry.arguments?.getString("userId")
                                     if (currentUserId != null) {
-                                        // 1. Update data model with URI string
-                                        if (uriStr != null) {
-                                            if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
-                                                callLogsFromSource = callLogsFromSource.map { log ->
-                                                    if (log.user.id == currentUserId) {
-                                                        log.copy(user = log.user.copy(profilePicUrl = uriStr))
-                                                    } else { log }
-                                                }
-                                            }
-                                            if (userToLog?.id == currentUserId) {
-                                                userToLog = userToLog?.copy(profilePicUrl = uriStr)
-                                            }
-                                        } else { // URI is null (picture removed)
-                                            if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
-                                                callLogsFromSource = callLogsFromSource.map { log ->
-                                                    if (log.user.id == currentUserId) {
-                                                        log.copy(user = log.user.copy(profilePicUrl = null))
-                                                    } else { log }
-                                                }
-                                            }
-                                            if (userToLog?.id == currentUserId) {
-                                                userToLog = userToLog?.copy(profilePicUrl = null)
-                                            }
-                                        }
-
-                                        // Step B: Immediately set display data to null
+                                        // Step 1: Immediately set display data to null
                                         profileScreenImageDisplayData = null
 
-                                        // Step C: Asynchronously convert URI to ByteArray (if URI is not null)
-                                        if (uriStr != null) { // Check newProfilePicUrl (which is uriStr)
+                                        // Step 2: Update the underlying data model (user.profilePicUrl) with the URI string or null
+                                        val newProfilePicUrl = uriStr
+
+                                        if (callLogsFromSource.any { log -> log.user.id == currentUserId }) {
+                                            callLogsFromSource = callLogsFromSource.map { log ->
+                                                if (log.user.id == currentUserId) {
+                                                    log.copy(user = log.user.copy(profilePicUrl = newProfilePicUrl))
+                                                } else { log }
+                                            }
+                                        }
+                                        if (userToLog?.id == currentUserId) {
+                                            userToLog = userToLog?.copy(profilePicUrl = newProfilePicUrl)
+                                        }
+                                        // Note: The original 'else' for updating with null is covered by newProfilePicUrl being null.
+
+                                        // Step 3: Asynchronously convert URI to ByteArray (if URI is not null)
+                                        if (newProfilePicUrl != null) {
                                             scope.launch {
-                                                Log.d("MainActivityByteReader", "Attempting to read/convert URI: $uriStr")
+                                                Log.d("MainActivityByteReader", "Attempting to read/convert URI: $newProfilePicUrl")
                                                 val byteArray = try {
                                                     withContext(Dispatchers.IO) {
-                                                        localContext.contentResolver.openInputStream(Uri.parse(uriStr))?.use { inputStream ->
+                                                        localContext.contentResolver.openInputStream(Uri.parse(newProfilePicUrl))?.use { inputStream ->
                                                             val byteArrayOutputStream = ByteArrayOutputStream()
                                                             inputStream.copyTo(byteArrayOutputStream)
                                                             byteArrayOutputStream.toByteArray()
                                                         }
                                                     }
                                                 } catch (e: Exception) {
-                                                    Log.e("MainActivityByteReader", "Failed to read/convert URI to ByteArray: $uriStr", e)
+                                                    Log.e("MainActivityByteReader", "Failed to read/convert URI to ByteArray: $newProfilePicUrl", e)
                                                     null
                                                 }
+
                                                 if (byteArray != null) {
                                                     Log.d("MainActivityByteReader", "Successfully converted URI to ByteArray, size: ${byteArray.size}")
                                                     profileScreenImageDisplayData = byteArray
                                                 } else {
-                                                    profileScreenImageDisplayData = uriStr // Fallback to URI string
+                                                    profileScreenImageDisplayData = newProfilePicUrl // Fallback to URI string
                                                 }
                                             }
-                                        } else {
-                                            profileScreenImageDisplayData = null // Clear display data if URI is null
                                         }
+                                        // If newProfilePicUrl was null, profileScreenImageDisplayData remains null (set in Step 1)
                                     }
                                 },
                                 imageDataSource = profileScreenImageDisplayData, // Pass the new state
                                 mainRed = mainRed,
                                 mainWhite = mainWhite
                             )
+                        } else {
+                            // If user is not found (e.g., invalid userId), clear the display data.
+                            LaunchedEffect(Unit) {
+                                profileScreenImageDisplayData = null
+                            }
                         }
                     }
                     composable("dialer") {
