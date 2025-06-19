@@ -9,9 +9,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,7 +95,8 @@ fun ContactsScreen(
     ) {
         // TopBar with Back + Search
         Surface(
-            color = mainRed,
+            color = mainRed, // M3 Surface uses containerColor for background. This might set content color.
+            // For explicit background, use containerColor = mainRed. Assuming mainRed is background here.
             elevation = 6.dp
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -99,7 +107,7 @@ fun ContactsScreen(
                         onClick = onBack,
                         modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = accentRed,
+                            containerColor = accentRed,
                             contentColor = mainWhite
                         ),
                         shape = CircleShape
@@ -122,12 +130,13 @@ fun ContactsScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .fillMaxWidth(),
                     singleLine = true,
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        backgroundColor = mainWhite,
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = accentRed,
                         unfocusedBorderColor = mainRed,
                         cursorColor = accentRed,
-                        textColor = mainRed
+                        focusedTextColor = mainRed,
+                        unfocusedTextColor = mainRed
+                        // backgroundColor = mainWhite, // Removed as M3 OutlinedTextFieldDefaults.colors doesn't have direct backgroundColor
                     )
                 )
             }
@@ -140,7 +149,7 @@ fun ContactsScreen(
                     onClick = { permissionState.launchPermissionRequest() },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = mainRed,
+                        containerColor = mainRed,
                         contentColor = mainWhite
                     )
                 ) {
