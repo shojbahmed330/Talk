@@ -36,7 +36,6 @@ class AgoraManager(
 
         } catch (e: Exception) {
             Log.e(tag, "Could not initialize Agora RTC Engine: ${e.message}")
-            // Propagate or handle exception as needed
             throw e
         }
     }
@@ -47,8 +46,8 @@ class AgoraManager(
             return
         }
         val options = ChannelMediaOptions()
-        options.publishMicrophoneTrack = true // Assuming we want to publish audio
-        options.autoSubscribeAudio = true   // Assuming we want to subscribe to remote audio
+        options.publishMicrophoneTrack = true
+        options.autoSubscribeAudio = true
 
         val result = rtcEngine?.joinChannel(token, channelName, uid, options)
         if (result != Constants.ERR_OK) {
@@ -69,6 +68,24 @@ class AgoraManager(
         } else {
             Log.d(tag, "Channel left successfully.")
         }
+    }
+
+    fun muteLocalAudioStream(muted: Boolean) {
+        if (rtcEngine == null) {
+            Log.e(tag, "RTC Engine not initialized.")
+            return
+        }
+        rtcEngine?.muteLocalAudioStream(muted)
+        Log.d(tag, "Local audio muted: $muted")
+    }
+
+    fun setEnableSpeakerphone(enabled: Boolean) {
+        if (rtcEngine == null) {
+            Log.e(tag, "RTC Engine not initialized.")
+            return
+        }
+        rtcEngine?.setEnableSpeakerphone(enabled)
+        Log.d(tag, "Speakerphone enabled: $enabled")
     }
 
     fun destroy() {
@@ -103,8 +120,4 @@ object DefaultRtcEngineEventHandler : IRtcEngineEventHandler() {
     override fun onError(err: Int) {
         Log.e(tag, "Agora RTC error: $err, message: ${RtcEngine.getErrorDescription(err)}")
     }
-
-    // You might want to add other handlers as needed, for example:
-    // override fun onRemoteAudioStateChanged(uid: Int, state: Int, reason: Int, elapsed: Int) {}
-    // override fun onAudioVolumeIndication(speakers: Array<out AudioVolumeInfo>?, totalVolume: Int) {}
 }

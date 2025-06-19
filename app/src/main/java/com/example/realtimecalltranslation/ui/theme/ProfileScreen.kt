@@ -1,4 +1,4 @@
-package com.example.realtimecalltranslation.ui // Ensure correct package
+package com.example.realtimecalltranslation.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,11 +24,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import android.util.Log
 import androidx.compose.material.icons.filled.BrokenImage
-import java.io.ByteArrayOutputStream
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +57,7 @@ fun ProfileScreen(
     mainWhite: Color,
     onNameUpdate: (newName: String) -> Unit,
     onProfilePicUriSelected: (uriString: String?) -> Unit,
-    imageDataSource: Any?
+    imageDataSource: Any? = null // Default to null if not provided
 ) {
     Log.d("ProfileScreenInit", "Composing ProfileScreen for User: ${user.name}, Initial imageDataSource: $imageDataSource")
 
@@ -74,7 +69,7 @@ fun ProfileScreen(
     }
 
     var isEditingName by rememberSaveable { mutableStateOf(false) }
-    var editedName by rememberSaveable(user.name) { mutableStateOf(user.name) }
+    var editedName by rememberSaveable { mutableStateOf(user.name) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Box(
@@ -140,64 +135,48 @@ fun ProfileScreen(
                         .size(110.dp)
                         .clickable { imagePickerLauncher.launch("image/*") }
                 ) {
-                    key(imageDataSource) { // ***** KEY BLOCK ADDED *****
-                        Box(modifier = Modifier.fillMaxSize()) { // Inner Box for content + overlay
-                            if (imageDataSource is ByteArray || (imageDataSource is String && imageDataSource.isNotBlank())) {
-                                val imageRequest = if (imageDataSource is ByteArray) {
-                                    ImageRequest.Builder(LocalContext.current)
-                                        .data(imageDataSource)
-                                        .size(Size(256, 256)) // Explicit size for byte array
-                                        // No .crossfade(true) for ByteArray for this test
-                                        .build()
-                                } else { // Assumed to be String URI or other Coil-compatible model
-                                    ImageRequest.Builder(LocalContext.current)
-                                        .data(imageDataSource)
-                                        .crossfade(true) // Keep crossfade for URLs/other types
-                                        .size(Size(256, 256)) // Explicit size
-                                        .build()
-                                }
-                                AsyncImage(
-                                    model = imageRequest, // Use the conditionally built request
-                                    contentDescription = "User Avatar",
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
-                                        .background(mainWhite, CircleShape)
-                                        .border(4.dp, mainWhite, CircleShape),
-                                    contentScale = ContentScale.Crop,
-                                    onState = { state: AsyncImagePainter.State ->
-                                        val modelTypeForLog = if (imageDataSource is ByteArray) {
-                                            "ByteArray[size=${imageDataSource.size}]"
-                                        } else {
-                                            imageDataSource?.toString() ?: "null"
-                                        }
-                                        when (state) {
-                                            is AsyncImagePainter.State.Loading -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
-                                            is AsyncImagePainter.State.Success -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
-                                            is AsyncImagePainter.State.Error -> Log.e("ProfileScreenImgLoad", "Error (via onState) with Model: $modelTypeForLog", state.result.throwable)
-                                            is AsyncImagePainter.State.Empty -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
-                                        }
-                                    }
-                                )
-                            } else {
-                                // Fallback Person Icon
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
-                                        .background(mainWhite)
-                                        .border(4.dp, mainWhite, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Person,
-                                        contentDescription = "Default Avatar",
-                                        modifier = Modifier.size(70.dp),
-                                        tint = mainRed
-                                    )
-                                }
+                    key(imageDataSource) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            val imageRequest = when (imageDataSource) {
+                                is ByteArray -> ImageRequest.Builder(LocalContext.current)
+                                    .data(imageDataSource)
+                                    .size(Size(256, 256))
+                                    .build()
+                                is String -> ImageRequest.Builder(LocalContext.current)
+                                    .data(imageDataSource)
+                                    .crossfade(true)
+                                    .size(Size(256, 256))
+                                    .build()
+                                else -> ImageRequest.Builder(LocalContext.current)
+                                    .data(user.profilePicUrl ?: Icons.Filled.Person)
+                                    .crossfade(true)
+                                    .size(Size(256, 256))
+                                    .build()
                             }
-                            // Edit Icon Overlay (inside key block)
+                            AsyncImage(
+                                model = imageRequest,
+                                contentDescription = "User Avatar",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(mainWhite, CircleShape)
+                                    .border(4.dp, mainWhite, CircleShape),
+                                contentScale = ContentScale.Crop,
+                                onState = { state ->
+                                    val modelTypeForLog = when (imageDataSource) {
+                                        is ByteArray -> "ByteArray[size=${imageDataSource.size}]"
+                                        is String -> imageDataSource
+                                        else -> "null or default"
+                                    }
+                                    when (state) {
+                                        is AsyncImagePainter.State.Loading -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
+                                        is AsyncImagePainter.State.Success -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
+                                        is AsyncImagePainter.State.Error -> Log.e("ProfileScreenImgLoad", "Error with Model: $modelTypeForLog", state.result.throwable)
+                                        is AsyncImagePainter.State.Empty -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
+                                    }
+                                }
+                            )
+                            // Edit Icon Overlay
                             Icon(
                                 imageVector = Icons.Filled.PhotoCamera,
                                 contentDescription = "Change Picture",
@@ -208,8 +187,8 @@ fun ProfileScreen(
                                     .background(mainRed.copy(alpha = 0.7f), CircleShape)
                                     .padding(4.dp)
                             )
-                        } // ***** END INNER BOX *****
-                    } // ***** END KEY BLOCK *****
+                        }
+                    }
                 }
             }
 

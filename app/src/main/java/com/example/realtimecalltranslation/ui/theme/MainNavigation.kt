@@ -1,39 +1,39 @@
-package com.example.realtimecalltranslation.ui
+package com.example.realtimecalltranslation.ui.theme
 
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.CallLog as AndroidCallLog
 import androidx.compose.runtime.*
-import androidx.compose.foundation.layout.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import com.example.realtimecalltranslation.ui.theme.CallLog
-import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
-import com.example.realtimecalltranslation.ui.theme.CallType
-import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
-import com.example.realtimecalltranslation.ui.theme.DialerScreen
-import com.example.realtimecalltranslation.ui.theme.ContactsScreen
-import com.example.realtimecalltranslation.ui.ProfileScreen
+import com.example.realtimecalltranslation.agora.AgoraManager
 import com.example.realtimecalltranslation.ui.CallScreen
-import com.example.realtimecalltranslation.ui.theme.* // <-- Import all color constants from Color.kt
+import com.example.realtimecalltranslation.ui.CallScreenViewModel
+import com.example.realtimecalltranslation.ui.ProfileScreen
+import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
+import com.example.realtimecalltranslation.ui.theme.CallLog
+import com.example.realtimecalltranslation.ui.theme.CallType
+import com.example.realtimecalltranslation.ui.theme.DialerScreen
+import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
+import com.example.realtimecalltranslation.ui.theme.ContactsScreen
+import com.example.realtimecalltranslation.ui.theme.User
 
 @Composable
 fun MainNavigation(
-    appId: String,
+    callScreenViewModel: CallScreenViewModel,
+    agoraManager: AgoraManager,
     token: String?,
-    localIsUsa: Boolean
+    localIsUsa: Boolean,
+    appId: String
 ) {
     var currentScreen by remember { mutableStateOf("history") }
     var callTo by remember { mutableStateOf<String?>(null) }
-    var messages by remember { mutableStateOf(listOf<Message>()) }
     var selectedUser by remember { mutableStateOf<User?>(null) }
     var selectedNav by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current
 
-    // Demo user & call log, fallback only
     val demoUsers = listOf(
         User("1", "Demo User", "017XXXXXXXX", null),
         User("2", "Has Pic", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
@@ -45,24 +45,19 @@ fun MainNavigation(
         CallLog(demoUsers[2], "Outgoing call", CallType.OUTGOING, false, "20 min ago")
     )
 
-    // Permission check
     val hasPermission = ContextCompat.checkSelfPermission(
         context, Manifest.permission.READ_CALL_LOG
     ) == PackageManager.PERMISSION_GRANTED
 
-    // Real call log fetcher (memoized)
     val realCallLogs = remember(hasPermission) {
-        if (hasPermission) getRealCallLogs(context) else emptyList()
+        if (hasPermission) getRealCallLogs(context) else emptyList<CallLog>()
     }
 
     val activeCallLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
-    val activeUsers = activeCallLogs.map { it.user }.distinctBy { it.id }
 
-    // --- Navigation Logic ---
     when (currentScreen) {
         "history" -> {
             CallHistoryScreen(
-                // userList removed, only pass callLogs
                 callLogs = activeCallLogs,
                 onProfile = { user ->
                     selectedUser = user
@@ -70,10 +65,6 @@ fun MainNavigation(
                 },
                 onCall = { user ->
                     callTo = user.phone
-                    messages = listOf(
-                        Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
-                        Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
-                    )
                     currentScreen = "call"
                 },
                 onUserAvatar = { user ->
@@ -105,7 +96,11 @@ fun MainNavigation(
                 currentScreen = "history"
             },
             mainRed = mainRed,
-            mainWhite = mainWhite
+            mainWhite = mainWhite,
+            onNavigateToCall = { number ->
+                callTo = number
+                currentScreen = "call"
+            }
         )
         "favourites" -> FavouritesScreen(
             onBack = {
@@ -122,6 +117,10 @@ fun MainNavigation(
                 selectedNav = 0
                 currentScreen = "history"
             },
+            onCallContact = { phoneNumber ->
+                callTo = phoneNumber
+                currentScreen = "call"
+            },
             mainRed = mainRed,
             mainWhite = mainWhite,
             accentRed = accentRed,
@@ -134,13 +133,13 @@ fun MainNavigation(
             token = token,
             appId = appId,
             localIsUsa = localIsUsa,
-            messages = messages,
             onCallEnd = {
                 selectedNav = 0
                 currentScreen = "history"
             },
             mainRed = mainRed,
-            mainWhite = mainWhite
+            mainWhite = mainWhite,
+            callScreenViewModel = callScreenViewModel
         )
         "profile" -> {
             selectedUser?.let { user ->
@@ -151,23 +150,25 @@ fun MainNavigation(
                         selectedNav = 0
                         currentScreen = "history"
                     },
-                    onCall = { user2 ->
-                        callTo = user2.phone
-                        messages = listOf(
-                            Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
-                            Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
-                        )
+                    onCall = { userToCall ->
+                        callTo = userToCall.phone
                         currentScreen = "call"
                     },
                     mainRed = mainRed,
-                    mainWhite = mainWhite
+                    mainWhite = mainWhite,
+                    onNameUpdate = { newName ->
+                        selectedUser = selectedUser?.copy(name = newName)
+                    },
+                    onProfilePicUriSelected = { uriString ->
+                        // প্রোফাইল ছবি আপডেটের লজিক যোগ করতে পারেন
+                    },
+                    imageDataSource = user.profilePicUrl
                 )
             }
         }
     }
 }
 
-// --- Real Call Log fetcher ---
 fun getRealCallLogs(context: Context): List<CallLog> {
     val logs = mutableListOf<CallLog>()
     val resolver = context.contentResolver

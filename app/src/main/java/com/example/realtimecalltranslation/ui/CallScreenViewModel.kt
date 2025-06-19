@@ -21,14 +21,14 @@ class CallScreenViewModel(
     private val audioRecorderHelper: AudioRecorderHelper,
     private val s3Uploader: S3Uploader,
     private val amazonTranscribeHelper: AmazonTranscribeHelper,
-    private val pollyHelper: PollyTTSHelper,
-    private val agoraManager: AgoraManager, // Kept if VM needs to interact with Agora state/events directly
+    private val pollyTTSHelper: PollyTTSHelper,
+    private val agoraManager: AgoraManager,
     private val rapidApiKey: String
 ) : ViewModel() {
 
     // State variables
     var isRecording by mutableStateOf(false)
-        private set // Allow external read, internal write
+        private set
     var transcriptionStatus by mutableStateOf("Idle")
         private set
     var transcribedText by mutableStateOf("")
@@ -49,7 +49,7 @@ class CallScreenViewModel(
     }
 
     private fun startRecordingProcess() {
-        pollyHelper.stop() // Stop any ongoing TTS
+        pollyTTSHelper.stop()
         transcriptionStatus = "Recording..."
         errorMessage = null
         transcribedText = ""
@@ -60,7 +60,7 @@ class CallScreenViewModel(
     }
 
     private fun stopRecordingAndProcess() {
-        pollyHelper.stop() // Stop any ongoing TTS, just in case
+        pollyTTSHelper.stop()
         transcriptionStatus = "Stopping recording..."
         val outputFile = audioRecorderHelper.stopRecording()
         isRecording = false
@@ -71,7 +71,6 @@ class CallScreenViewModel(
                 try {
                     transcriptionStatus = "Uploading audio..."
                     errorMessage = null
-                    // Clear previous results for new operation
                     transcribedText = ""
                     translatedText = ""
 
@@ -82,7 +81,7 @@ class CallScreenViewModel(
                     if (s3Uri != null) {
                         Log.d(tag, "Audio uploaded to S3: $s3Uri")
                         transcriptionStatus = "Transcribing audio..."
-                        val transcribedTextString = amazonTranscribeHelper.startTranscriptionJob(s3Uri, languageCode = "en-US")
+                        val transcribedTextString = amazonTranscribeHelper.startTranscriptionJob(s3Uri, "en-US")
 
                         if (transcribedTextString != null) {
                             Log.d(tag, "Transcription successful: $transcribedTextString")
@@ -93,8 +92,8 @@ class CallScreenViewModel(
                                 try {
                                     val request = TranslationRequest(
                                         q = transcribedTextString,
-                                        target = "bn", // Target: Bangla
-                                        source = "en"  // Source: English
+                                        target = "bn",
+                                        source = "en"
                                     )
                                     val response = RetrofitInstance.api.translate(
                                         body = request,
@@ -107,8 +106,8 @@ class CallScreenViewModel(
                                             translatedText = translationResult
                                             transcriptionStatus = "Speaking translated text..."
                                             try {
-                                                val targetVoiceId = "Zoya" // Bengali (India)
-                                                pollyHelper.speak(translationResult, voiceId = targetVoiceId)
+                                                val targetVoiceId = "Zoya"
+                                                pollyTTSHelper.speak(translationResult, voiceId = targetVoiceId)
                                                 transcriptionStatus = "Playing translated audio."
                                                 Log.d(tag, "TTS started for: $translationResult")
                                             } catch (e: Exception) {
@@ -150,7 +149,6 @@ class CallScreenViewModel(
                     errorMessage = "Error: ${e.localizedMessage}"
                     transcriptionStatus = "Error"
                 } finally {
-                    // Clean up the local audio file
                     outputFile.let { File(it).delete() }
                     Log.d(tag, "Cleaned up local audio file: $outputFile")
                 }
@@ -163,11 +161,11 @@ class CallScreenViewModel(
     }
 
     fun stopOngoingTTS() {
-        pollyHelper.stop()
+        pollyTTSHelper.stop()
     }
 
     fun stopOngoingRecordingAndCleanup() {
-        if(isRecording) {
+        if (isRecording) {
             val outputFile = audioRecorderHelper.stopRecording()
             isRecording = false
             if (outputFile != null) {
@@ -177,20 +175,41 @@ class CallScreenViewModel(
         }
     }
 
-    // agoraManager related methods can be added here if CallScreen delegates them.
-    // For example:
-    // fun joinAgoraChannel(channel: String, token: String?, uid: Int) {
-    //     agoraManager.joinChannel(channel, token, uid)
-    // }
-    // fun leaveAgoraChannel() {
-    //     agoraManager.leaveChannel()
-    // }
+    // Agora-related methods
+    fun joinCall(channel: String, token: String?, appId: String) {
+        agoraManager.joinChannel(channel, token, 0)
+        Log.d(tag, "Joined Agora channel: $channel")
+    }
+
+    fun leaveCall() {
+        agoraManager.leaveChannel()
+        Log.d(tag, "Left Agora channel")
+    }
+
+    fun toggleMute(isMuted: Boolean) {
+        agoraManager.muteLocalAudioStream(isMuted)
+        Log.d(tag, "Mute toggled: $isMuted")
+    }
+
+    fun toggleSpeaker(isSpeakerOn: Boolean) {
+        agoraManager.setEnableSpeakerphone(isSpeakerOn)
+        Log.d(tag, "Speaker toggled: $isSpeakerOn")
+    }
+
+    fun toggleHold(isOnHold: Boolean) {
+        if (isOnHold) {
+            agoraManager.muteLocalAudioStream(true)
+        } else {
+            agoraManager.muteLocalAudioStream(false)
+        }
+        Log.d(tag, "Hold toggled: $isOnHold")
+    }
 
     override fun onCleared() {
         super.onCleared()
-        // PollyHelper is released by MainActivity's DisposableEffect.
-        // AudioRecorderHelper doesn't have a release method.
-        // AgoraManager is released by MainActivity's DisposableEffect.
+        stopOngoingRecordingAndCleanup()
+        stopOngoingTTS()
+        leaveCall()
         Log.d(tag, "ViewModel cleared.")
     }
 }

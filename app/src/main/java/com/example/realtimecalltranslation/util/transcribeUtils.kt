@@ -11,7 +11,6 @@ import com.amazonaws.services.transcribe.model.*
 import kotlinx.coroutines.Dispatchers
 import org.json.JSONObject
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.*
 
 class AudioRecorderHelper(private val context: Context) {
