@@ -34,11 +34,14 @@ import com.example.realtimecalltranslation.ui.CallScreen
 import com.example.realtimecalltranslation.ui.theme.RealTimeCallTranslationTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-import com.example.realtimecalltranslation.ui.theme.CallLog
-import com.example.realtimecalltranslation.ui.theme.CallType
-import com.example.realtimecalltranslation.ui.Message
-import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+// Import all from theme, including colors like mainRed, accentRed etc.
+import com.example.realtimecalltranslation.ui.theme.*
+import com.example.realtimecalltranslation.ui.theme.CallLog // Explicit if not covered by *
+import com.example.realtimecalltranslation.ui.theme.CallType // Explicit if not covered by *
+import com.example.realtimecalltranslation.ui.Message // Explicit if not covered by *
+import com.example.realtimecalltranslation.ui.theme.User // Explicit if not covered by *
+import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Explicit if not covered by *
+
 
 // IMPORTANT: Replace with your actual RapidAPI Key
 const val RAPID_API_KEY_PLACEHOLDER = "YOUR_RAPID_API_KEY"
@@ -96,7 +99,6 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // Create and remember AmazonTranscribeHelper instance
-                // Note: Using s3BucketName also for Transcribe output. Ensure this bucket is configured for Transcribe.
                 val amazonTranscribeHelper = remember {
                     AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region)
                 }
@@ -107,7 +109,6 @@ class MainActivity : ComponentActivity() {
                         context = applicationContext,
                         accessKey = awsAccessKey,
                         secretKey = awsSecretKey
-                        // region can be defaulted in PollyTTSHelper or passed if needed
                     )
                 }
 
@@ -117,22 +118,18 @@ class MainActivity : ComponentActivity() {
                     s3Uploader,
                     amazonTranscribeHelper,
                     pollyHelper,
-                    agoraManager, // Pass AgoraManager to ViewModel factory
+                    agoraManager,
                     RAPID_API_KEY_PLACEHOLDER
                 )
                 val callScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
-                // Ensure resources are released when the activity is destroyed
                 DisposableEffect(Unit) {
                     onDispose {
                         agoraManager.destroy()
-                        pollyHelper.release() // Release Polly resources
-                        // s3Uploader does not have a specific destroy/release method
-                        // ViewModel's onCleared will be called automatically
+                        pollyHelper.release()
                     }
                 }
 
-                // Demo users & logs
                 val demoUsers = listOf(
                     User("1", "Shojib", "017XXXXXXXX", "https://randomuser.me/api/portraits/men/96.jpg"),
                     User("2", "Sumi", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
@@ -148,9 +145,6 @@ class MainActivity : ComponentActivity() {
                     CallLog(demoUsers[4], "Another call", CallType.OUTGOING, false, "2 min ago")
                 )
 
-                // val context = LocalContext.current // applicationContext is already available
-
-                // Real call logs (from Android)
                 val hasPermission = ContextCompat.checkSelfPermission(
                     applicationContext, Manifest.permission.READ_CALL_LOG
                 ) == PackageManager.PERMISSION_GRANTED
@@ -158,11 +152,14 @@ class MainActivity : ComponentActivity() {
                 val realCallLogs = remember(hasPermission) {
                     if (hasPermission) getRealCallLogs(applicationContext) else emptyList()
                 }
-                val realUsers = realCallLogs.map { it.user }.distinctBy { it.id }
 
-                // Fallback: real log থাকলে ওটাই, না থাকলে demo
-                val users = if (realCallLogs.isNotEmpty()) realUsers else demoUsers
+                val users = if (realCallLogs.isNotEmpty()) realCallLogs.map { it.user }.distinctBy { it.id } else demoUsers
                 val callLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
+
+                // Define colors from theme - assuming they are top-level in ui.theme.Color.kt
+                // If they are part of MaterialTheme.colorScheme, adjust accordingly.
+                // For this pass, I'm assuming they are directly available after `com.example.realtimecalltranslation.ui.theme.*`
+                // If `mainRed` etc. are not found, this implies they should be e.g. `MaterialTheme.colorScheme.primary`
 
                 NavHost(navController, startDestination = "welcome") {
                     composable("welcome") {
@@ -179,10 +176,8 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("callhistory") {
-                        // এখানে CallHistoryScreen ব্যবহার করুন
                         CallHistoryScreen(
-                            userList = users,
-                            callLogs = callLogs,
+                            callLogs = callLogs, // userList removed
                             onProfile = { user ->
                                 navController.navigate("profile/${user.id}")
                             },
@@ -204,14 +199,35 @@ class MainActivity : ComponentActivity() {
                             onContacts = {
                                 navController.navigate("contacts")
                             },
-                            selectedNav = 0
+                            selectedNav = 0, // Default selectedNav
+                            mainRed = mainRed,
+                            mainWhite = mainWhite,
+                            accentRed = accentRed,
+                            lightRed = lightRed
                         )
                     }
                     composable("favourites") {
-                        FavouritesScreen()
+                        FavouritesScreen(
+                           onBack = { navController.navigate("callhistory") { popUpTo("callhistory") { inclusive = true } } },
+                           mainRed = mainRed,
+                           mainWhite = mainWhite,
+                           accentRed = accentRed,
+                           lightRed = lightRed
+                        )
                     }
                     composable("contacts") {
-                        ContactsScreen()
+                        ContactsScreen(
+                            onBack = { navController.popBackStack() },
+                            onCallContact = { phoneNumber ->
+                                navController.navigate("call/$phoneNumber")
+                            },
+                            mainRed = mainRed,
+                            accentRed = accentRed,
+                            mainWhite = mainWhite,
+                            mainGreen = mainGreen,
+                            lightGreen = lightGreen,
+                            lightRed = lightRed
+                        )
                     }
                     composable(
                         route = "profile/{userId}",
@@ -224,13 +240,22 @@ class MainActivity : ComponentActivity() {
                                 user = user,
                                 callLogs = callLogs.filter { it.user.id == user.id },
                                 onBack = { navController.popBackStack() },
-                                onCall = { navController.navigate("call/${user.phone}") }
+                                onCall = { userToCall ->
+                                    navController.navigate("call/${userToCall.phone}")
+                                },
+                                mainRed = mainRed,
+                                mainWhite = mainWhite
                             )
                         }
                     }
                     composable("dialer") {
                         DialerScreen(
-                            onClose = { navController.popBackStack() }
+                            onClose = { navController.popBackStack() },
+                            mainRed = mainRed,
+                            mainWhite = mainWhite,
+                            onNavigateToCall = { number ->
+                                navController.navigate("call/$number")
+                            }
                         )
                     }
                     composable(
@@ -238,15 +263,13 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("number") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
-                        val mainRedColor = MaterialTheme.colorScheme.primary // Example color
-                        val mainWhiteColor = Color.White // Example color
-
                         CallScreen(
                             callScreenViewModel = callScreenViewModel,
                             agoraManager = agoraManager,
                             channel = number,
                             token = null,
                             localIsUsa = true,
+                            // Using demo messages as present in the user's last provided file for this screen
                             messages = listOf(
                                 Message(
                                     fromUsa = true,
@@ -259,8 +282,8 @@ class MainActivity : ComponentActivity() {
                                     translated = "I am fine."
                                 )
                             ),
-                            mainRed = mainRedColor,
-                            mainWhite = mainWhiteColor,
+                            mainRed = mainRed,
+                            mainWhite = mainWhite,
                             onCallEnd = { navController.popBackStack() }
                         )
                     }
