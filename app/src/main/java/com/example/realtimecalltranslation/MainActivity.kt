@@ -252,8 +252,11 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        // 2. Attempt to convert URI to ByteArray for immediate display
-                                        if (uriStr != null) {
+                                        // Step B: Immediately set display data to null
+                                        profileScreenImageDisplayData = null
+
+                                        // Step C: Asynchronously convert URI to ByteArray (if URI is not null)
+                                        if (uriStr != null) { // Check newProfilePicUrl (which is uriStr)
                                             scope.launch {
                                                 Log.d("MainActivityByteReader", "Attempting to read/convert URI: $uriStr")
                                                 val byteArray = try {

@@ -184,6 +184,7 @@ fun MainNavigation(
                             selectedUser = selectedUser?.copy(profilePicUrl = uriString)
                         }
                     },
+                    imageDataSource = selectedUser?.profilePicUrl, // Added this line
                     mainRed = mainRed,
                     mainWhite = mainWhite
                 )
