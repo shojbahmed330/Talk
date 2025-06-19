@@ -9,9 +9,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,7 +32,9 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.rememberPermissionState
 
-import com.example.realtimecalltranslation.ui.theme.*
+// Removed: import com.example.realtimecalltranslation.ui.theme.*
+// Assuming ContactListItem, mainRed, accentRed etc. are available through other means
+// (e.g. ContactListItem in same package, Colors defined in Theme.kt or Color.kt and accessible)
 
 data class Contact(val name: String, val phone: String)
 
@@ -89,7 +98,8 @@ fun ContactsScreen(
         // TopBar with Back + Search
         Surface(
             color = mainRed,
-            elevation = 6.dp
+            shadowElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -99,7 +109,7 @@ fun ContactsScreen(
                         onClick = onBack,
                         modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = accentRed,
+                            containerColor = accentRed,
                             contentColor = mainWhite
                         ),
                         shape = CircleShape
@@ -122,12 +132,13 @@ fun ContactsScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .fillMaxWidth(),
                     singleLine = true,
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        backgroundColor = mainWhite,
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = accentRed,
                         unfocusedBorderColor = mainRed,
                         cursorColor = accentRed,
-                        textColor = mainRed
+                        focusedTextColor = mainRed,
+                        unfocusedTextColor = mainRed
+                        // backgroundColor = mainWhite, // Removed as M3 OutlinedTextFieldDefaults.colors doesn't have direct backgroundColor
                     )
                 )
             }
@@ -140,7 +151,7 @@ fun ContactsScreen(
                     onClick = { permissionState.launchPermissionRequest() },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = mainRed,
+                        containerColor = mainRed,
                         contentColor = mainWhite
                     )
                 ) {

@@ -18,16 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-enum class CallType { INCOMING, OUTGOING, MISSED }
-
-data class CallLog(
-    val user: User,
-    val message: String,
-    val callType: CallType,
-    val isMissed: Boolean = false,
-    val time: String = ""
-)
+import com.example.realtimecalltranslation.ui.theme.CallLog
+import com.example.realtimecalltranslation.ui.theme.CallType
 
 @Composable
 fun CallLogRow(
