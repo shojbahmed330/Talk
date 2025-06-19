@@ -58,7 +58,7 @@ fun fetchContacts(context: Context): List<Contact> {
 @Composable
 fun ContactsScreen(
     onBack: () -> Unit = {},
-    onCallContact: (contactName: String, phoneNumber: String) -> Unit = { _, _ -> },
+    onCallContact: (String) -> Unit = {},
     mainRed: Color,
     accentRed: Color,
     mainWhite: Color,
@@ -167,7 +167,7 @@ fun ContactsScreen(
                             onClick = {
                                 expandedContact = if (expandedContact == contact.phone) null else contact.phone
                             },
-                            onCall = { onCallContact(contact.name, contact.phone) },
+                            onCall = { onCallContact(contact.phone) },
                             mainWhite = mainWhite,
                             mainGreen = mainGreen,
                             lightGreen = lightGreen,

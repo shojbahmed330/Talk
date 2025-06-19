@@ -8,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import com.example.realtimecalltranslation.agora.AgoraManager
 import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
 import com.example.realtimecalltranslation.ui.theme.CallType
@@ -18,16 +17,13 @@ import com.example.realtimecalltranslation.ui.theme.DialerScreen
 import com.example.realtimecalltranslation.ui.theme.ContactsScreen
 import com.example.realtimecalltranslation.ui.ProfileScreen
 import com.example.realtimecalltranslation.ui.CallScreen
-import com.example.realtimecalltranslation.ui.CallScreenViewModel
-import com.example.realtimecalltranslation.ui.theme.*
+import com.example.realtimecalltranslation.ui.theme.* // <-- Import all color constants from Color.kt
 
 @Composable
 fun MainNavigation(
-    callScreenViewModel: CallScreenViewModel, // Added
-    agoraManager: AgoraManager,             // Added
+    appId: String,
     token: String?,
     localIsUsa: Boolean
-    // appId: String, // Removed
 ) {
     var currentScreen by remember { mutableStateOf("history") }
     var callTo by remember { mutableStateOf<String?>(null) }
@@ -109,14 +105,7 @@ fun MainNavigation(
                 currentScreen = "history"
             },
             mainRed = mainRed,
-            mainWhite = mainWhite,
-            onNavigateToCall = { number ->
-                callTo = number
-                messages = listOf( // Optional: set initial messages
-                    Message(fromUsa = true, original = "Dialing...", translated = "ডায়াল হচ্ছে...")
-                )
-                currentScreen = "call"
-            }
+            mainWhite = mainWhite
         )
         "favourites" -> FavouritesScreen(
             onBack = {
@@ -138,20 +127,12 @@ fun MainNavigation(
             accentRed = accentRed,
             lightRed = lightRed,
             mainGreen = mainGreen,
-            lightGreen = lightGreen,
-            onCallContact = { phoneNumber ->
-                callTo = phoneNumber
-                messages = listOf(
-                    Message(fromUsa = true, original = "Calling contact...", translated = "কন্টাক্টকে কল করা হচ্ছে...")
-                )
-                currentScreen = "call"
-            }
+            lightGreen = lightGreen
         )
         "call" -> CallScreen(
-            callScreenViewModel = callScreenViewModel,
-            agoraManager = agoraManager,             // Passed from MainNavigation
             channel = callTo ?: "",
-            token = token,                           // Passed from MainNavigation
+            token = token,
+            appId = appId,
             localIsUsa = localIsUsa,
             messages = messages,
             onCallEnd = {
@@ -166,7 +147,6 @@ fun MainNavigation(
                 ProfileScreen(
                     user = user,
                     callLogs = activeCallLogs.filter { it.user.id == user.id },
-                    // onNameUpdate, onProfilePicUriSelected, imageDataSource removed
                     onBack = {
                         selectedNav = 0
                         currentScreen = "history"
@@ -174,7 +154,8 @@ fun MainNavigation(
                     onCall = { user2 ->
                         callTo = user2.phone
                         messages = listOf(
-                            Message(fromUsa = true, original = "Calling contact...", translated = "কন্টাক্টকে কল করা হচ্ছে...")
+                            Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
+                            Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
                         )
                         currentScreen = "call"
                     },
