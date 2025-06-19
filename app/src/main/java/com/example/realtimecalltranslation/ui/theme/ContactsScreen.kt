@@ -97,8 +97,9 @@ fun ContactsScreen(
     ) {
         // TopBar with Back + Search
         Surface(
-            containerColor = mainRed,
-            shadowElevation = 6.dp
+            color = mainRed,
+            shadowElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
