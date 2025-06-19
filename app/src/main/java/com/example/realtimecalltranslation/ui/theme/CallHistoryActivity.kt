@@ -11,6 +11,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.example.realtimecalltranslation.ui.theme.User
+import com.example.realtimecalltranslation.ui.theme.CallType
+import com.example.realtimecalltranslation.ui.theme.CallLog
 
 class CallHistoryActivity : ComponentActivity() {
 
@@ -57,9 +60,9 @@ fun CallHistoryScreenContent() {
 
     val callLogs = if (hasPermission) getRealCallLogs(context) else listOf(
         // Fallback demo call logs
-        CallLog(User("1", "Demo User", "017XXXXXXXX", null), "Demo incoming", CallType.INCOMING, false, "5 min ago"),
-        CallLog(User("2", "Missed Caller", "018XXXXXXXX", null), "Missed call", CallType.MISSED, true, "10 min ago"),
-        CallLog(User("3", "Outgoing Guy", "019XXXXXXXX", null), "Outgoing call", CallType.OUTGOING, false, "15 min ago")
+        CallLog(user = User("1", "Demo User", "017XXXXXXXX", null), message = "Demo incoming", callType = CallType.INCOMING, isMissed = false, time = "5 min ago"),
+        CallLog(user = User("2", "Missed Caller", "018XXXXXXXX", null), message = "Missed call", callType = CallType.MISSED, isMissed = true, time = "10 min ago"),
+        CallLog(user = User("3", "Outgoing Guy", "019XXXXXXXX", null), message = "Outgoing call", callType = CallType.OUTGOING, isMissed = false, time = "15 min ago")
     )
 
     // Use activeUsers if needed in CallHistoryScreen, otherwise remove
@@ -82,14 +85,6 @@ fun CallHistoryScreenContent() {
 }
 
 // Data classes and functions
-data class CallLog(val user: User, val title: String, val type: CallType, val isMissed: Boolean, val time: String)
-data class User(val id: String, val name: String, val phone: String, val avatar: String?)
-enum class CallType { INCOMING, MISSED, OUTGOING }
-
-fun getRealCallLogs(context: android.content.Context): List<CallLog> {
-    // Placeholder for real call log retrieval
-    return emptyList() // Replace with actual ContentResolver logic
-}
 
 // Updated CallHistoryScreen Composable definition
 @Composable
