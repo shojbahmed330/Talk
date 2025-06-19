@@ -4,9 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,8 +34,8 @@ fun ContactListItem(
     mainRed: Color
 ) {
     Card(
-        backgroundColor = if (isExpanded) lightGreen else mainWhite,
-        elevation = 2.dp,
+        colors = CardDefaults.cardColors(containerColor = if (isExpanded) lightGreen else mainWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
@@ -72,7 +77,7 @@ fun ContactListItem(
                     ) {
                         Button(
                             onClick = onCall,
-                            colors = ButtonDefaults.buttonColors(backgroundColor = mainGreen),
+                            colors = ButtonDefaults.buttonColors(containerColor = mainGreen),
                             modifier = Modifier.height(32.dp)
                         ) {
                             Text("Call", color = mainWhite, fontSize = 14.sp)
