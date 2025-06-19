@@ -39,8 +39,8 @@ import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.Message
 import com.example.realtimecalltranslation.ui.theme.User
-// import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Removed incorrect
-import com.example.realtimecalltranslation.ui.getRealCallLogs // Added correct import
+// import com.example.realtimecalltranslation.ui.getRealCallLogs // Removed incorrect
+import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Added correct import
 import kotlinx.coroutines.launch
 import java.io.InputStream
 
