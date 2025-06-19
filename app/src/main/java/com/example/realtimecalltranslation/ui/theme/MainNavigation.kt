@@ -1,209 +1,153 @@
-package com.example.realtimecalltranslation.ui
+package com.example.realtimecalltranslation.ui.theme
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.provider.CallLog as AndroidCallLog
-import androidx.compose.runtime.*
+import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
-import com.example.realtimecalltranslation.agora.AgoraManager
-import com.example.realtimecalltranslation.ui.theme.CallLog
-import com.example.realtimecalltranslation.ui.theme.CallHistoryScreen
-import com.example.realtimecalltranslation.ui.theme.CallType
-import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.FavouritesScreen
-import com.example.realtimecalltranslation.ui.theme.DialerScreen
-import com.example.realtimecalltranslation.ui.theme.ContactsScreen
-import com.example.realtimecalltranslation.ui.theme.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+// import androidx.compose.ui.platform.LocalContext // No longer needed
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+// import com.example.realtimecalltranslation.OutgoingCallActivity // No longer needed
 
 @Composable
-fun MainNavigation(
-    callScreenViewModel: CallScreenViewModel, // Added
-    agoraManager: AgoraManager,             // Added
-    token: String?,
-    localIsUsa: Boolean
-    // appId: String, // Removed
+fun DialerScreen(
+    onClose: () -> Unit,
+    mainRed: Color, // This parameter is not used in the current body, but kept as per signature
+    mainWhite: Color, // This parameter is not used in the current body, but kept as per signature
+    onNavigateToCall: (String) -> Unit // Added new parameter
 ) {
-    var currentScreen by remember { mutableStateOf("history") }
-    var callTo by remember { mutableStateOf<String?>(null) }
-    var messages by remember { mutableStateOf(listOf<Message>()) }
-    var selectedUser by remember { mutableStateOf<User?>(null) }
-    var selectedNav by remember { mutableIntStateOf(0) }
+    var phoneNumber by remember { mutableStateOf("") }
+    // val context = LocalContext.current // No longer needed
 
-    val context = LocalContext.current
-
-    // Demo user & call log, fallback only
-    val demoUsers = listOf(
-        User("1", "Demo User", "017XXXXXXXX", null),
-        User("2", "Has Pic", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
-        User("3", "No Pic", "019XXXXXXXX", null)
+    // Professional color palette
+    val dialerBg = Brush.verticalGradient(
+        colors = listOf(Color(0xFFf7fafc), Color(0xFFe3e5ea))
     )
-    val demoCallLogs = listOf(
-        CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "5 min ago"),
-        CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "10 min ago"),
-        CallLog(demoUsers[2], "Outgoing call", CallType.OUTGOING, false, "20 min ago")
-    )
+    val numPadColor = Color(0xFFffffff)
+    val numTextColor = Color(0xFF222e3a)
+    val callBtnColor = Color(0xFF2AAA5B)
+    val callBtnTextColor = Color.White
+    val iconColor = Color(0xFF4B5563)
 
-    // Permission check
-    val hasPermission = ContextCompat.checkSelfPermission(
-        context, Manifest.permission.READ_CALL_LOG
-    ) == PackageManager.PERMISSION_GRANTED
+    // fun goToOutgoingCallActivity(number: String) { // Removed this function
+    //     val intent = Intent(context, OutgoingCallActivity::class.java)
+    //     intent.putExtra("CALLEE_NUMBER", number)
+    //     context.startActivity(intent)
+    // }
 
-    // Real call log fetcher (memoized)
-    val realCallLogs = remember(hasPermission) {
-        if (hasPermission) getRealCallLogs(context) else emptyList()
-    }
-
-    val activeCallLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
-    val activeUsers = activeCallLogs.map { it.user }.distinctBy { it.id }
-
-    // --- Navigation Logic ---
-    when (currentScreen) {
-        "history" -> {
-            CallHistoryScreen(
-                // userList removed, only pass callLogs
-                callLogs = activeCallLogs,
-                onProfile = { user ->
-                    selectedUser = user
-                    currentScreen = "profile"
-                },
-                onCall = { user ->
-                    callTo = user.phone
-                    messages = listOf(
-                        Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
-                        Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(dialerBg),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(40.dp))
+        // Phone Number Display
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 36.dp)
+                .background(
+                    Color.White.copy(alpha = 0.95f),
+                    shape = CircleShape
+                )
+                .padding(vertical = 22.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (phoneNumber.isEmpty()) "Enter Number" else phoneNumber,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = numTextColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = { if (phoneNumber.isNotEmpty()) phoneNumber = phoneNumber.dropLast(1) },
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Backspace,
+                        contentDescription = "Delete",
+                        tint = iconColor,
+                        modifier = Modifier.size(28.dp)
                     )
-                    currentScreen = "call"
-                },
-                onUserAvatar = { user ->
-                    selectedUser = user
-                    currentScreen = "profile"
-                },
-                onFavourites = {
-                    selectedNav = 0
-                    currentScreen = "favourites"
-                },
-                onDialer = {
-                    selectedNav = 1
-                    currentScreen = "dialer"
-                },
-                onContacts = {
-                    selectedNav = 2
-                    currentScreen = "contacts"
-                },
-                selectedNav = selectedNav,
-                mainRed = mainRed,
-                mainWhite = mainWhite,
-                accentRed = accentRed,
-                lightRed = lightRed
-            )
-        }
-        "dialer" -> DialerScreen(
-            onClose = {
-                selectedNav = 0
-                currentScreen = "history"
-            },
-            mainRed = mainRed,
-            mainWhite = mainWhite
-        )
-        "favourites" -> FavouritesScreen(
-            onBack = {
-                selectedNav = 0
-                currentScreen = "history"
-            },
-            mainRed = mainRed,
-            mainWhite = mainWhite,
-            accentRed = accentRed,
-            lightRed = lightRed
-        )
-        "contacts" -> ContactsScreen(
-            onBack = {
-                selectedNav = 0
-                currentScreen = "history"
-            },
-            mainRed = mainRed,
-            mainWhite = mainWhite,
-            accentRed = accentRed,
-            lightRed = lightRed,
-            mainGreen = mainGreen,
-            lightGreen = lightGreen
-        )
-        "call" -> CallScreen(
-            callScreenViewModel = callScreenViewModel, // Passed from MainNavigation
-            agoraManager = agoraManager,             // Passed from MainNavigation
-            channel = callTo ?: "",
-            token = token,                           // Passed from MainNavigation
-            // appId = appId, // Removed
-            localIsUsa = localIsUsa,                 // Passed from MainNavigation
-            messages = messages,                     // From MainNavigation's state
-            onCallEnd = {
-                selectedNav = 0
-                currentScreen = "history"
-            },
-            mainRed = mainRed,                       // From theme import
-            mainWhite = mainWhite                    // From theme import
-        )
-        "profile" -> {
-            selectedUser?.let { user ->
-                ProfileScreen(
-                    user = user,
-                    callLogs = activeCallLogs.filter { it.user.id == user.id },
-                    onBack = {
-                        selectedNav = 0
-                        currentScreen = "history"
-                    },
-                    onCall = { user2 ->
-                        callTo = user2.phone
-                        messages = listOf(
-                            Message(fromUsa = true, original = "How are you?", translated = "কেমন আছো?"),
-                            Message(fromUsa = false, original = "Ami bhalo achi.", translated = "I am fine.")
-                        )
-                        currentScreen = "call"
-                    },
-                    mainRed = mainRed,
-                    mainWhite = mainWhite
-                )
+                }
             }
         }
-    }
-}
+        Spacer(Modifier.height(30.dp))
 
-// --- Real Call Log fetcher ---
-fun getRealCallLogs(context: Context): List<CallLog> {
-    val logs = mutableListOf<CallLog>()
-    val resolver = context.contentResolver
-    val cursor = resolver.query(
-        AndroidCallLog.Calls.CONTENT_URI,
-        null, null, null, AndroidCallLog.Calls.DATE + " DESC"
-    )
-    cursor?.use {
-        val numberIdx = it.getColumnIndex(AndroidCallLog.Calls.NUMBER)
-        val typeIdx = it.getColumnIndex(AndroidCallLog.Calls.TYPE)
-        val nameIdx = it.getColumnIndex(AndroidCallLog.Calls.CACHED_NAME)
-        val dateIdx = it.getColumnIndex(AndroidCallLog.Calls.DATE)
-        while (it.moveToNext()) {
-            val number = it.getString(numberIdx)
-            val name = it.getString(nameIdx) ?: number
-            val type = when (it.getInt(typeIdx)) {
-                AndroidCallLog.Calls.INCOMING_TYPE -> CallType.INCOMING
-                AndroidCallLog.Calls.OUTGOING_TYPE -> CallType.OUTGOING
-                AndroidCallLog.Calls.MISSED_TYPE -> CallType.MISSED
-                else -> CallType.MISSED
+        // Dial Pad
+        val keys = listOf(
+            listOf("1", "2", "3"),
+            listOf("4", "5", "6"),
+            listOf("7", "8", "9"),
+            listOf("*", "0", "#")
+        )
+        keys.forEach { row ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 48.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                row.forEach { key ->
+                    Button(
+                        onClick = { phoneNumber += key },
+                        modifier = Modifier
+                            .size(76.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = numPadColor,
+                            contentColor = numTextColor
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
+                    ) {
+                        Text(
+                            key,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = numTextColor
+                        )
+                    }
+                }
             }
-            val time = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", it.getLong(dateIdx)).toString()
-            val user = User(id = number, name = name, phone = number)
-            logs.add(
-                CallLog(
-                    user = user,
-                    message = if (type == CallType.MISSED) "Missed" else type.name,
-                    callType = type,
-                    isMissed = (type == CallType.MISSED),
-                    time = time
-                )
-            )
         }
+
+        Spacer(Modifier.height(32.dp))
+
+        // Call Button
+        Button(
+            onClick = { if (phoneNumber.isNotEmpty()) onNavigateToCall(phoneNumber) }, // Changed to use onNavigateToCall
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 70.dp)
+                .height(54.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = callBtnColor)
+        ) {
+            Text("Call", fontSize = 22.sp, color = callBtnTextColor, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(18.dp))
+        TextButton(
+            onClick = { onClose() }
+        ) {
+            Text("Close", color = Color(0xFF6B7280), fontSize = 16.sp)
+        }
+        Spacer(Modifier.height(10.dp))
     }
-    return logs
 }
