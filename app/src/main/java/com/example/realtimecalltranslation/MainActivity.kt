@@ -1,7 +1,7 @@
 package com.example.realtimecalltranslation
 
 import android.Manifest
-import android.content.Context
+// import android.content.Context // Not directly used, LocalContext.current.applicationContext is used
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.CallLog as AndroidCallLog
@@ -36,11 +36,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 // Import all from theme, including colors like mainRed, accentRed etc.
 import com.example.realtimecalltranslation.ui.theme.*
-import com.example.realtimecalltranslation.ui.theme.CallLog // Explicit if not covered by *
-import com.example.realtimecalltranslation.ui.theme.CallType // Explicit if not covered by *
-import com.example.realtimecalltranslation.ui.Message // Explicit if not covered by *
-import com.example.realtimecalltranslation.ui.theme.User // Explicit if not covered by *
-import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Explicit if not covered by *
+import com.example.realtimecalltranslation.ui.theme.CallLog
+import com.example.realtimecalltranslation.ui.theme.CallType
+import com.example.realtimecalltranslation.ui.Message
+import com.example.realtimecalltranslation.ui.theme.User
+// Removed: import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+import com.example.realtimecalltranslation.ui.getRealCallLogs // Corrected import
 
 
 // IMPORTANT: Replace with your actual RapidAPI Key
@@ -51,26 +52,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             RealTimeCallTranslationTheme {
-                val applicationContext = LocalContext.current.applicationContext // Get application context
+                val applicationContext = LocalContext.current.applicationContext
                 val navController = rememberNavController()
 
-                // Define Agora App ID - REPLACE WITH YOUR ACTUAL APP ID
-                val agoraAppId = "YOUR_APP_ID" // Or fetch from string resources, build config, etc.
+                val agoraAppId = "YOUR_APP_ID"
 
-                // AWS S3 Configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS AND BUCKET INFO
-                // IMPORTANT: DO NOT COMMIT ACTUAL CREDENTIALS TO VERSION CONTROL
-                // Consider using local.properties, BuildConfig, or a secure backend for these.
                 val awsAccessKey = "YOUR_AWS_ACCESS_KEY"
                 val awsSecretKey = "YOUR_AWS_SECRET_KEY"
                 val s3BucketName = "YOUR_S3_BUCKET_NAME"
-                val s3Region = Regions.US_EAST_1 // Example: Change to your bucket's region
+                val s3Region = Regions.US_EAST_1
 
-                // Create and remember AgoraManager instance
                 val agoraManager = remember {
                     AgoraManager(applicationContext, agoraAppId, DefaultRtcEngineEventHandler)
                 }
 
-                // Initialize AgoraManager once
                 LaunchedEffect(key1 = agoraManager) {
                     try {
                         agoraManager.init()
@@ -79,12 +74,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Create and remember S3Uploader instance
                 val s3Uploader = remember {
                     S3Uploader(applicationContext, awsAccessKey, awsSecretKey, s3BucketName, s3Region)
                 }
 
-                // Initialize S3Uploader once
                 LaunchedEffect(key1 = s3Uploader) {
                     try {
                         s3Uploader.initS3Client()
@@ -93,17 +86,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Create and remember AudioRecorderHelper instance
                 val audioRecorderHelper = remember {
                     AudioRecorderHelper(applicationContext)
                 }
 
-                // Create and remember AmazonTranscribeHelper instance
                 val amazonTranscribeHelper = remember {
                     AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region)
                 }
 
-                // Create and remember PollyTTSHelper instance
                 val pollyHelper = remember {
                     PollyTTSHelper(
                         context = applicationContext,
@@ -112,7 +102,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // Create ViewModel instance using the factory
                 val callScreenViewModelFactory = CallScreenViewModelFactory(
                     audioRecorderHelper,
                     s3Uploader,
@@ -150,16 +139,11 @@ class MainActivity : ComponentActivity() {
                 ) == PackageManager.PERMISSION_GRANTED
 
                 val realCallLogs = remember(hasPermission) {
-                    if (hasPermission) getRealCallLogs(applicationContext) else emptyList()
+                    if (hasPermission) getRealCallLogs(applicationContext) else emptyList<CallLog>()
                 }
 
                 val users = if (realCallLogs.isNotEmpty()) realCallLogs.map { it.user }.distinctBy { it.id } else demoUsers
                 val callLogs = if (realCallLogs.isNotEmpty()) realCallLogs else demoCallLogs
-
-                // Define colors from theme - assuming they are top-level in ui.theme.Color.kt
-                // If they are part of MaterialTheme.colorScheme, adjust accordingly.
-                // For this pass, I'm assuming they are directly available after `com.example.realtimecalltranslation.ui.theme.*`
-                // If `mainRed` etc. are not found, this implies they should be e.g. `MaterialTheme.colorScheme.primary`
 
                 NavHost(navController, startDestination = "welcome") {
                     composable("welcome") {
@@ -177,7 +161,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("callhistory") {
                         CallHistoryScreen(
-                            callLogs = callLogs, // userList removed
+                            callLogs = callLogs,
                             onProfile = { user ->
                                 navController.navigate("profile/${user.id}")
                             },
@@ -199,7 +183,7 @@ class MainActivity : ComponentActivity() {
                             onContacts = {
                                 navController.navigate("contacts")
                             },
-                            selectedNav = 0, // Default selectedNav
+                            selectedNav = 0,
                             mainRed = mainRed,
                             mainWhite = mainWhite,
                             accentRed = accentRed,
@@ -269,7 +253,6 @@ class MainActivity : ComponentActivity() {
                             channel = number,
                             token = null,
                             localIsUsa = true,
-                            // Using demo messages as present in the user's last provided file for this screen
                             messages = listOf(
                                 Message(
                                     fromUsa = true,
