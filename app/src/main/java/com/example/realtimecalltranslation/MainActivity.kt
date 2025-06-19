@@ -39,7 +39,8 @@ import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.Message
 import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+// import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Removed incorrect
+import com.example.realtimecalltranslation.ui.getRealCallLogs // Added correct import
 import kotlinx.coroutines.launch
 import java.io.InputStream
 
@@ -74,8 +75,6 @@ class MainActivity : ComponentActivity() {
                 val amazonTranscribeHelper = remember { AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
                 val pollyHelper = remember { PollyTTSHelper(context = applicationContext, accessKey = awsAccessKey, secretKey = awsSecretKey) }
 
-                // ViewModelFactory and ViewModel might become unused if CallScreen is the only consumer
-                // For now, they are kept as per previous instructions.
                 val callScreenViewModelFactory = CallScreenViewModelFactory(audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
                 val callScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
