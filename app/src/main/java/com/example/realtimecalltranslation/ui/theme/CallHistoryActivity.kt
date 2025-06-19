@@ -70,43 +70,18 @@ fun CallHistoryScreenContent() {
 
     CallHistoryScreen(
         callLogs = callLogs,
-        onProfileClick = {}, // Placeholder for profile click
-        onCallClick = {},   // Placeholder for call click
-        onUserAvatarClick = {}, // Placeholder for avatar click
-        onFavouritesClick = {}, // Placeholder for favourites click
-        onDialerClick = {}, // Placeholder for dialer click
-        onContactsClick = {}, // Placeholder for contacts click
+        onProfile = {}, // Placeholder for profile click
+        onCall = {},   // Placeholder for call click
+        onUserAvatar = {}, // Placeholder for avatar click
+        onFavourites = {}, // Placeholder for favourites click
+        onDialer = {}, // Placeholder for dialer click
+        onContacts = {}, // Placeholder for contacts click
         selectedNav = 0,
-        mainRed = Color.Red,
-        mainWhite = Color.White,
-        accentRed = Color(0xFFFF4444),
-        lightRed = Color(0xFFFF9999)
+        mainRed = Color.Red, // Consider using theme colors
+        mainWhite = Color.White, // Consider using theme colors
+        accentRed = Color(0xFFFF4444), // Consider using theme colors
+        lightRed = Color(0xFFFF9999)  // Consider using theme colors
     )
 }
 
 // Data classes and functions
-
-// Updated CallHistoryScreen Composable definition
-@Composable
-fun CallHistoryScreen(
-    callLogs: List<CallLog>,
-    onProfileClick: () -> Unit,
-    onCallClick: () -> Unit,
-    onUserAvatarClick: () -> Unit,
-    onFavouritesClick: () -> Unit,
-    onDialerClick: () -> Unit,
-    onContactsClick: () -> Unit,
-    selectedNav: Int,
-    mainRed: Color,
-    mainWhite: Color,
-    accentRed: Color,
-    lightRed: Color
-) {
-    // Implement your UI logic here
-    // Example: Display call logs
-    androidx.compose.material3.Text(
-        text = "Call Logs: ${callLogs.size}",
-        color = mainRed
-    )
-    // Add more UI elements as needed
-}
