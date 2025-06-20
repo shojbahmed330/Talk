@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter // Added import
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -43,8 +44,26 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import coil.size.Size
 import com.example.realtimecalltranslation.ui.theme.CallLog
-import com.example.realtimecalltranslation.ui.theme.CallLogRow
+// CallLogRow will be replaced by custom layout
 import com.example.realtimecalltranslation.ui.theme.User
+import com.example.realtimecalltranslation.ui.theme.formatTimeAgo // Added import
+import com.example.realtimecalltranslation.ui.theme.CallType // Added import
+// Removed duplicate: import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Divider // Added import
+import androidx.compose.material3.MaterialTheme // Added import for MaterialTheme.colorScheme
+
+private fun formatDuration(seconds: Long?): String {
+    if (seconds == null || seconds < 0) return ""
+    if (seconds == 0L) return "0s"
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return buildString {
+        if (hours > 0) append("${hours}h ")
+        if (minutes > 0) append("${minutes}m ")
+        if (secs > 0 || (hours == 0L && minutes == 0L)) append("${secs}s")
+    }.trim()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,63 +151,59 @@ fun ProfileScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(110.dp)
+                        .size(110.dp) // This is the outer clickable Box size
                         .clickable { imagePickerLauncher.launch("image/*") }
                 ) {
-                    key(imageDataSource) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            val imageRequest = when (imageDataSource) {
-                                is ByteArray -> ImageRequest.Builder(LocalContext.current)
-                                    .data(imageDataSource)
-                                    .size(Size(256, 256))
-                                    .build()
-                                is String -> ImageRequest.Builder(LocalContext.current)
-                                    .data(imageDataSource)
-                                    .crossfade(true)
-                                    .size(Size(256, 256))
-                                    .build()
-                                else -> ImageRequest.Builder(LocalContext.current)
-                                    .data(user.profilePicUrl ?: Icons.Filled.Person)
-                                    .crossfade(true)
-                                    .size(Size(256, 256))
-                                    .build()
+                    key(imageDataSource, user.profilePicUrl) { // Updated key
+                        // This inner Box is for the image/placeholder itself
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize() // Fill the 110.dp Box
+                                .clip(CircleShape)
+                                .background(mainWhite, CircleShape) // Background for the circle
+                                .border(4.dp, mainWhite, CircleShape), // Border for the circle
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val modelToLoad: Any? = imageDataSource ?: user.profilePicUrl
+
+                            if (modelToLoad is ByteArray || (modelToLoad is String && modelToLoad.isNotBlank())) {
+                                // Valid model for Coil: ByteArray or non-blank String (URL/URI)
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(modelToLoad)
+                                        .crossfade(true)
+                                        // .size(Size(256, 256)) // Optional
+                                        .build(),
+                                    contentDescription = user.name ?: "User Avatar",
+                                    modifier = Modifier.fillMaxSize(), // Fill the parent Box (which is already clipped)
+                                    contentScale = ContentScale.Crop,
+                                    onError = { error ->
+                                        Log.e("ProfileScreenImgLoad", "Error loading image: $modelToLoad", error.result.throwable)
+                                    }
+                                )
+                            } else {
+                                // Fallback to placeholder Icon if no valid image data
+                                Image(
+                                    imageVector = Icons.Filled.Person, // Default placeholder
+                                    contentDescription = user.name ?: "User Avatar Placeholder",
+                                    modifier = Modifier.size(60.dp), // Adjust size of the icon within the circle
+                                    contentScale = ContentScale.Fit,
+                                    colorFilter = ColorFilter.tint(mainRed.copy(alpha = 0.7f)) // Tint for the placeholder
+                                )
                             }
-                            AsyncImage(
-                                model = imageRequest,
-                                contentDescription = "User Avatar",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .background(mainWhite, CircleShape)
-                                    .border(4.dp, mainWhite, CircleShape),
-                                contentScale = ContentScale.Crop,
-                                onState = { state ->
-                                    val modelTypeForLog = when (imageDataSource) {
-                                        is ByteArray -> "ByteArray[size=${imageDataSource.size}]"
-                                        is String -> imageDataSource
-                                        else -> "null or default"
-                                    }
-                                    when (state) {
-                                        is AsyncImagePainter.State.Loading -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
-                                        is AsyncImagePainter.State.Success -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
-                                        is AsyncImagePainter.State.Error -> Log.e("ProfileScreenImgLoad", "Error with Model: $modelTypeForLog", state.result.throwable)
-                                        is AsyncImagePainter.State.Empty -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
-                                    }
-                                }
-                            )
-                            // Edit Icon Overlay
-                            Icon(
-                                imageVector = Icons.Filled.PhotoCamera,
-                                contentDescription = "Change Picture",
-                                tint = mainWhite.copy(alpha = 0.9f),
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .size(30.dp)
-                                    .background(mainRed.copy(alpha = 0.7f), CircleShape)
-                                    .padding(4.dp)
-                            )
                         }
                     }
+                    // Edit Icon Overlay (should be outside the key block, but inside the clickable Box)
+                    Icon(
+                        imageVector = Icons.Filled.PhotoCamera,
+                        contentDescription = "Change Picture",
+                        tint = mainWhite.copy(alpha = 0.9f),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(30.dp)
+                            .background(mainRed.copy(alpha = 0.7f), CircleShape)
+                            .padding(4.dp)
+                    )
                 }
             }
 
@@ -303,18 +318,47 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxSize().padding(top = 6.dp)
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp)
+                        modifier = Modifier.fillMaxSize().padding(vertical = 8.dp) // Horizontal padding handled by items now
                     ) {
-                        items(callLogs) { log ->
-                            CallLogRow(
-                                log = log,
-                                onProfile = {},
-                                onCall = onCall,
-                                mainRed = mainRed,
-                                accentRed = mainRed,
-                                lightRed = mainWhite,
-                                cardBg = mainWhite
-                            )
+                        val displayedLogs = if (callLogs.size > 50) callLogs.take(50) else callLogs
+                        items(displayedLogs) { log ->
+                            val callTypeString = when (log.callType) {
+                                CallType.INCOMING -> "Incoming"
+                                CallType.OUTGOING -> "Outgoing"
+                                CallType.MISSED -> "Missed"
+                            }
+                            val durationString = formatDuration(log.duration)
+                            val timeAgoString = formatTimeAgo(log.timestamp)
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp, horizontal = 16.dp) // Item specific horizontal padding
+                                    .background(mainWhite.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    // UserAvatar(user = log.user, size = 40.dp)
+                                    // Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "${log.user.name} (${log.user.phone})",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = mainRed,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(text = callTypeString, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(text = log.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface) // Original message
+                                Spacer(Modifier.height(4.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = "Duration: $durationString", fontSize = 12.sp, color = Color.Gray)
+                                    Text(text = timeAgoString, fontSize = 12.sp, color = Color.Gray)
+                                }
+                                Text(text = log.formattedDateTime, fontSize = 12.sp, color = Color.Gray)
+                            }
+                            Divider(color = mainRed.copy(alpha = 0.2f), thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
                         }
                     }
                 }

@@ -64,7 +64,7 @@ fun CallScreen(
 
     // Initialize Agora call
     LaunchedEffect(Unit) {
-        callScreenViewModel.joinCall(channel, token, appId)
+        callScreenViewModel.joinCall(channel, token, appId, user?.name) // Pass user?.name
     }
 
     // Clean up on exit

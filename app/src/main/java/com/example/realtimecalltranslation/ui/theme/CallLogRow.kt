@@ -77,9 +77,9 @@ fun CallLogRow(
                     color = accentRed,
                     fontSize = 13.sp
                 )
-                if (log.time.isNotBlank()) {
+                if (log.formattedDateTime.isNotBlank()) {
                     Text(
-                        text = log.time,
+                        text = log.formattedDateTime,
                         color = Color.Gray,
                         fontSize = 11.sp
                     )

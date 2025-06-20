@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf // Added import
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
@@ -33,6 +34,9 @@ import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.theme.User
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+import com.example.realtimecalltranslation.ui.theme.getContactDetailsByNumber
+import android.util.Log
+import android.widget.Toast // Added import for Toast
 import com.example.realtimecalltranslation.util.AudioRecorderHelper
 import com.example.realtimecalltranslation.util.AmazonTranscribeHelper
 import com.example.realtimecalltranslation.util.PollyTTSHelper
@@ -68,12 +72,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            Log.d("MainActivityDebug", "--- MainActivity setContent: Entered ---") // New log here
             RealTimeCallTranslationTheme {
                 val applicationContext = LocalContext.current.applicationContext
                 val navController = rememberNavController()
                 val scope = rememberCoroutineScope()
 
-                val agoraAppId = "YOUR_APP_ID"
+                val agoraAppId = "7b2d5eaf4312454dbc61d86f0361a5d2"
 
                 val awsAccessKey = "YOUR_AWS_ACCESS_KEY"
                 val awsSecretKey = "YOUR_AWS_SECRET_KEY"
@@ -83,7 +88,36 @@ class MainActivity : ComponentActivity() {
                 val agoraManager = remember {
                     AgoraManager(applicationContext, agoraAppId, DefaultRtcEngineEventHandler)
                 }
-                LaunchedEffect(key1 = agoraManager) { try { agoraManager.init() } catch (e: Exception) { android.util.Log.e("MainActivity", "Agora init failed: ${e.message}") } }
+                var isAgoraEngineInitialized by remember { mutableStateOf(false) } // Added state variable
+
+                LaunchedEffect(key1 = agoraManager) {
+                    Log.d("MainActivityDebug", "--- Agora Init LaunchedEffect: Entered ---")
+                    if (agoraManager == null) {
+                        Log.e("MainActivityDebug", "Agora Init LaunchedEffect: agoraManager INSTANCE IS NULL. Cannot init.")
+                        isAgoraEngineInitialized = false // Ensure state is updated
+                        return@LaunchedEffect
+                    }
+                    Log.d("MainActivityDebug", "Agora Init LaunchedEffect: agoraManager instance is NOT null.")
+                    try {
+                        Log.d("MainActivityDebug", "Agora Init LaunchedEffect: Preparing to call agoraManager.init().")
+                        agoraManager.init() // This should have internal logs too
+                        Log.d("MainActivityDebug", "Agora Init LaunchedEffect: agoraManager.init() call has completed (no immediate exception).")
+
+                        // Assuming agoraManager.isInitialized() getter exists from a previous step
+                        if (agoraManager.isInitialized()) {
+                            isAgoraEngineInitialized = true
+                            Log.d("MainActivityDebug", "Agora Init LaunchedEffect: SUCCESS - agoraManager.isInitialized() is true. MainActivity's isAgoraEngineInitialized set to true.")
+                        } else {
+                            isAgoraEngineInitialized = false
+                            Log.e("MainActivityDebug", "Agora Init LaunchedEffect: FAILED - agoraManager.isInitialized() is false AFTER init call. MainActivity's isAgoraEngineInitialized set to false.")
+                        }
+
+                    } catch (e: Exception) {
+                        isAgoraEngineInitialized = false
+                        Log.e("MainActivityDebug", "Agora Init LaunchedEffect: FAILED WITH EXCEPTION during agoraManager.init(): ${e.message}", e)
+                    }
+                    Log.d("MainActivityDebug", "--- Agora Init LaunchedEffect: Exiting. MainActivity's isAgoraEngineInitialized is now: $isAgoraEngineInitialized ---")
+                }
 
                 val s3Uploader = remember { S3Uploader(applicationContext, awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
                 LaunchedEffect(key1 = s3Uploader) { try { s3Uploader.initS3Client() } catch (e: Exception) { android.util.Log.e("MainActivity", "S3Uploader init failed: ${e.message}") } }
@@ -92,7 +126,7 @@ class MainActivity : ComponentActivity() {
                 val amazonTranscribeHelper = remember { AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
                 val pollyHelper = remember { PollyTTSHelper(context = applicationContext, accessKey = awsAccessKey, secretKey = awsSecretKey) }
 
-                val callScreenViewModelFactory = CallScreenViewModelFactory(audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
+                val callScreenViewModelFactory = CallScreenViewModelFactory(applicationContext, audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
                 val callScreenViewModel: CallScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
                 DisposableEffect(Unit) { onDispose { agoraManager.destroy(); pollyHelper.release() } }
@@ -104,22 +138,66 @@ class MainActivity : ComponentActivity() {
                     User("4", "JibOn", "016XXXXXXXX", "https://randomuser.me/api/portraits/women/2.jpg"),
                     User("5", "Maa GP", "015XXXXXXXX", "https://randomuser.me/api/portraits/women/26.jpg")
                 )
-                val demoCallLogsState = remember { mutableStateListOf<CallLog>().apply {
-                    addAll(demoUsers.mapIndexed { index, user ->
-                        CallLog(user, "Demo call message ${index+1}", if (index % 2 == 0) CallType.INCOMING else CallType.OUTGOING, index == 1, "${(index+1)*5} min ago")
-                    })
-                } }
+                val demoCallLogsState = remember {
+                    mutableStateListOf<CallLog>().apply {
+                        val now = System.currentTimeMillis()
+                        val demoDurations = listOf(60L, 125L, 0L, 300L, 15L) // Sample durations in seconds
+                        val demoMessages = listOf(
+                            "Discussing project details",
+                            "Quick check-in",
+                            "Missed this one",
+                            "Long conversation about weekend",
+                            "Regarding the upcoming event"
+                        )
+
+                        addAll(demoUsers.mapIndexed { index, user ->
+                            val callTimestamp = now - (index * 5 * 60 * 1000L) - (index * 30000L) // Offset by index for variety
+                            val callType = if (index % 2 == 0) CallType.INCOMING else CallType.OUTGOING
+                            val isMissedCall = index == 2 // Let's make the 3rd call a missed call for variety
+                            val durationSeconds = if (isMissedCall) 0L else demoDurations.getOrElse(index) { 30L }
+
+                            val currentCallType = if (isMissedCall) CallType.MISSED else callType
+                            val simpleMessage = when (currentCallType) {
+                                CallType.INCOMING -> "Incoming Call"
+                                CallType.OUTGOING -> "Outgoing Call"
+                                CallType.MISSED -> "Missed Call"
+                            }
+
+                            CallLog(
+                                user = user,
+                                message = simpleMessage, // Use simplified message
+                                callType = currentCallType,
+                                isMissed = isMissedCall,
+                                formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", callTimestamp).toString(),
+                                timestamp = callTimestamp,
+                                duration = durationSeconds
+                            )
+                        })
+                    }
+                }
 
                 val hasPermission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
                 var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
-                LaunchedEffect(hasPermission) {
+                var callLogRefreshTrigger by remember { mutableIntStateOf(0) } // Added state variable
+
+                LaunchedEffect(hasPermission, callLogRefreshTrigger) { // Added callLogRefreshTrigger to key
+                    Log.d("MainActivity", "Refreshing call logs, trigger: $callLogRefreshTrigger") // Optional debug log
                     callLogsFromSource = if (hasPermission) getRealCallLogs(applicationContext) else demoCallLogsState
                 }
 
                 var userToLog by remember { mutableStateOf<User?>(null) }
                 var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
 
-                val callLogsToDisplay = if (callLogsFromSource.isNotEmpty()) callLogsFromSource else demoCallLogsState
+                val callLogsToDisplay by remember(callLogsFromSource, demoCallLogsState) { // Keying to sources
+                    derivedStateOf {
+                        Log.d("MainActivity", "Re-deriving callLogsToDisplay. Source size: ${callLogsFromSource.size}") // Optional: for debugging
+                        if (callLogsFromSource.isNotEmpty()) {
+                            callLogsFromSource
+                        } else {
+                            demoCallLogsState
+                        }
+                    }
+                }
                 val usersToDisplay = if (callLogsFromSource.isNotEmpty()) callLogsFromSource.map { it.user }.distinctBy { it.id } else demoUsers
 
                 NavHost(navController, startDestination = "welcome") {
@@ -130,7 +208,14 @@ class MainActivity : ComponentActivity() {
                         CallHistoryScreen(
                             callLogs = callLogsToDisplay,
                             onProfile = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
-                            onCall = { user -> userToLog = user; navController.navigate("call/${user.phone}") },
+                            onCall = { user ->
+                                if (isAgoraEngineInitialized) {
+                                    userToLog = user
+                                    navController.navigate("call/${user.phone}")
+                                } else {
+                                    Toast.makeText(applicationContext, "Call service not ready. Please wait.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             onUserAvatar = { user -> userToLog = user; profileScreenImageDisplayData = user.profilePicUrl; navController.navigate("profile/${user.id}") },
                             onFavourites = { navController.navigate("favourites") },
                             onDialer = { navController.navigate("dialer") },
@@ -148,7 +233,15 @@ class MainActivity : ComponentActivity() {
                     composable("contacts") {
                         ContactsScreen(
                             onBack = { navController.popBackStack() },
-                            onCallContact = { phoneNumber -> userToLog = usersToDisplay.find { it.phone == phoneNumber }; navController.navigate("call/$phoneNumber") },
+                            onCallContact = { phoneNumber ->
+                                if (isAgoraEngineInitialized) {
+                                    userToLog = usersToDisplay.find { it.phone == phoneNumber }
+                                        ?: User(id = phoneNumber, name = phoneNumber, phone = phoneNumber, profilePicUrl = null)
+                                    navController.navigate("call/$phoneNumber")
+                                } else {
+                                    Toast.makeText(applicationContext, "Call service not ready. Please wait.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             mainRed = mainRed, accentRed = accentRed, mainWhite = mainWhite, mainGreen = mainGreen, lightGreen = lightGreen, lightRed = lightRed
                         )
                     }
@@ -194,7 +287,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 onBack = { navController.popBackStack() },
-                                onCall = { userToCall -> userToLog = userToCall; navController.navigate("call/${userToCall.phone}") },
+                                onCall = { userToCall ->
+                                    if (isAgoraEngineInitialized) {
+                                        userToLog = userToCall
+                                        navController.navigate("call/${userToCall.phone}")
+                                    } else {
+                                        Toast.makeText(applicationContext, "Call service not ready. Please wait.", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
                                 mainRed = mainRed,
                                 mainWhite = mainWhite
                             )
@@ -205,8 +305,13 @@ class MainActivity : ComponentActivity() {
                             onClose = { navController.popBackStack() },
                             mainRed = mainRed, mainWhite = mainWhite,
                             onNavigateToCall = { number ->
-                                userToLog = usersToDisplay.find { it.phone == number } ?: User(id = number, name = number, phone = number)
-                                navController.navigate("call/$number")
+                                if (isAgoraEngineInitialized) {
+                                    userToLog = usersToDisplay.find { it.phone == number }
+                                        ?: User(id = number, name = number, phone = number, profilePicUrl = null)
+                                    navController.navigate("call/$number")
+                                } else {
+                                    Toast.makeText(applicationContext, "Call service not ready. Please wait.", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         )
                     }
@@ -215,19 +320,47 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("number") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
-                        if (userToLog == null || userToLog?.phone != number) {
-                            userToLog = usersToDisplay.find { it.phone == number } ?: User(id = number, name = number, phone = number)
+                        // Use a local variable for intermediate updates to avoid multiple recompositions if userToLog is frequently changed
+                        var updatedUserToLog = userToLog
+
+                        if (updatedUserToLog == null || updatedUserToLog.phone != number) {
+                            updatedUserToLog = usersToDisplay.find { it.phone == number }
+                                ?: User(id = number, name = number, phone = number, profilePicUrl = null)
                         }
-                        CallScreen(
-                            channel = number,
-                            token = null,
-                            appId = agoraAppId,
-                            localIsUsa = true,
-                            onCallEnd = { navController.popBackStack() },
-                            mainRed = mainRed,
-                            mainWhite = mainWhite,
-                            callScreenViewModel = callScreenViewModel
-                        )
+
+                        // Attempt to fetch contact details if profilePicUrl is null
+                        if (updatedUserToLog != null && updatedUserToLog.profilePicUrl == null) {
+                            val contactDetails = getContactDetailsByNumber(applicationContext, updatedUserToLog.phone)
+                            if (contactDetails != null) {
+                                updatedUserToLog = updatedUserToLog.copy(
+                                    name = contactDetails.name, // Update name from contact details
+                                    profilePicUrl = contactDetails.photoUri ?: updatedUserToLog.profilePicUrl // Use new photoUri if available
+                                )
+                            }
+                        }
+
+                        // Update the actual state variable once all modifications are done
+                        userToLog = updatedUserToLog
+
+                        if (userToLog != null) {
+                            CallScreen(
+                                channel = userToLog!!.phone, // Use phone from userToLog
+                                token = null,
+                                appId = agoraAppId,
+                                localIsUsa = true,
+                                onCallEnd = {
+                                    navController.popBackStack()
+                                    callLogRefreshTrigger++
+                                },
+                                mainRed = mainRed,
+                                mainWhite = mainWhite,
+                                callScreenViewModel = callScreenViewModel,
+                                user = userToLog // Pass the updated user object
+                            )
+                        } else {
+                            // Optional: Handle the case where userToLog is still null, e.g., pop back or show error
+                            // navController.popBackStack()
+                        }
                     }
                 }
             }

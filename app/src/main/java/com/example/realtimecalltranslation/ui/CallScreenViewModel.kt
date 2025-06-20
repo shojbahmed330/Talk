@@ -1,5 +1,7 @@
 package com.example.realtimecalltranslation.ui
 
+import android.content.Context // Added import
+import android.provider.CallLog // Added import
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,8 +18,10 @@ import com.example.realtimecalltranslation.util.PollyTTSHelper
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
+import com.example.realtimecalltranslation.util.CallLogUtils // Added import
 
 class CallScreenViewModel(
+    private val applicationContext: Context, // Added applicationContext
     private val audioRecorderHelper: AudioRecorderHelper,
     private val s3Uploader: S3Uploader,
     private val amazonTranscribeHelper: AmazonTranscribeHelper,
@@ -39,6 +43,9 @@ class CallScreenViewModel(
         private set
 
     private val tag = "CallScreenViewModel"
+    private var callStartTimeMillis: Long = 0L
+    private var currentCallChannel: String? = null
+    private var currentCallUserName: String? = null // Added
 
     fun handleRecordAndTranscribePressed() {
         if (isRecording) {
@@ -176,14 +183,48 @@ class CallScreenViewModel(
     }
 
     // Agora-related methods
-    fun joinCall(channel: String, token: String?, appId: String) {
-        agoraManager.joinChannel(channel, token, 0)
-        Log.d(tag, "Joined Agora channel: $channel")
+    fun joinCall(channel: String, token: String?, appId: String, userName: String?) {
+        if (!agoraManager.isInitialized()) {
+            Log.e(tag, "Agora engine not initialized in ViewModel. Cannot join channel.")
+            // Optionally, update some state here to inform UI that joining failed
+            // For example: errorMessage = "Agora engine not ready"
+            return
+        }
+
+        // If initialized, proceed with joining the channel
+        agoraManager.joinChannel(channel, token, 0) // Pass UID 0 for now
+
+        this.currentCallChannel = channel
+        this.currentCallUserName = userName
+        this.callStartTimeMillis = System.currentTimeMillis()
+        Log.d(tag, "Agora engine initialized. Attempting to join channel: $channel, User: $userName. Start time recorded.")
     }
 
     fun leaveCall() {
         agoraManager.leaveChannel()
+        logCurrentCall() // Call new private method to log the call
         Log.d(tag, "Left Agora channel")
+    }
+
+    private fun logCurrentCall() {
+        if (callStartTimeMillis > 0 && !currentCallChannel.isNullOrBlank()) {
+            val durationSeconds = (System.currentTimeMillis() - callStartTimeMillis) / 1000
+
+            CallLogUtils.addCallToDeviceLog(
+                applicationContext,
+                currentCallChannel,
+                CallLog.Calls.OUTGOING_TYPE,
+                callStartTimeMillis,
+                durationSeconds,
+                currentCallUserName // Pass the stored user name here
+            )
+            Log.d(tag, "Attempted to log call: Number: $currentCallChannel, Name: $currentCallUserName, Duration: $durationSeconds s")
+
+            // Reset for next call
+            callStartTimeMillis = 0L
+            currentCallChannel = null
+            currentCallUserName = null // Reset userName as well
+        }
     }
 
     fun toggleMute(isMuted: Boolean) {
@@ -207,9 +248,11 @@ class CallScreenViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // leaveCall() is called here, which now includes logCurrentCall()
+        // If there's any specific order needed (e.g. log before full cleanup), ensure leaveCall handles it.
         stopOngoingRecordingAndCleanup()
         stopOngoingTTS()
-        leaveCall()
+        leaveCall() // This will attempt to log the call if it was active
         Log.d(tag, "ViewModel cleared.")
     }
 }

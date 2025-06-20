@@ -1,5 +1,6 @@
 package com.example.realtimecalltranslation.ui
 
+import android.content.Context // Added import
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.realtimecalltranslation.agora.AgoraManager
@@ -10,6 +11,7 @@ import com.example.realtimecalltranslation.util.PollyTTSHelper
 
 @Suppress("UNCHECKED_CAST")
 class CallScreenViewModelFactory(
+    private val applicationContext: Context, // Added applicationContext
     private val audioRecorderHelper: AudioRecorderHelper,
     private val s3Uploader: S3Uploader,
     private val amazonTranscribeHelper: AmazonTranscribeHelper,
@@ -20,6 +22,7 @@ class CallScreenViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CallScreenViewModel::class.java)) {
             return CallScreenViewModel(
+                applicationContext, // Pass applicationContext
                 audioRecorderHelper,
                 s3Uploader,
                 amazonTranscribeHelper,

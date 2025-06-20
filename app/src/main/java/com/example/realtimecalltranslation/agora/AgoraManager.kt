@@ -15,6 +15,9 @@ class AgoraManager(
 ) {
     private var rtcEngine: RtcEngine? = null
     private val tag = "AgoraManager"
+    private var isEngineInitialized = false // Renamed for clarity
+
+    fun isInitialized(): Boolean = isEngineInitialized // Public getter
 
     fun init() {
         try {
@@ -32,17 +35,23 @@ class AgoraManager(
             rtcEngine?.enableAudio()
             rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_LIVE_BROADCASTING)
             rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
-            Log.d(tag, "Agora RTC Engine initialized successfully.")
+            isEngineInitialized = true
+            Log.d(tag, "Agora RTC Engine initialization complete. isEngineInitialized = true")
 
         } catch (e: Exception) {
+            isEngineInitialized = false
             Log.e(tag, "Could not initialize Agora RTC Engine: ${e.message}")
             throw e
         }
     }
 
     fun joinChannel(channelName: String, token: String?, uid: Int) {
-        if (rtcEngine == null) {
-            Log.e(tag, "RTC Engine not initialized before joining channel.")
+        if (!isEngineInitialized) {
+            Log.e(tag, "RTC Engine not initialized. Call init() successfully before joining channel.")
+            return
+        }
+        if (rtcEngine == null) { // This check might be redundant if isEngineInitialized implies rtcEngine is not null
+            Log.e(tag, "RTC Engine is null despite isEngineInitialized being true. This should not happen.")
             return
         }
         val options = ChannelMediaOptions()
@@ -90,10 +99,11 @@ class AgoraManager(
 
     fun destroy() {
         if (rtcEngine != null) {
-            RtcEngine.destroy()
+            RtcEngine.destroy() // This internally calls leaveChannel if in a channel.
             rtcEngine = null
-            Log.d(tag, "Agora RTC Engine destroyed.")
         }
+        isEngineInitialized = false // Set before or after RtcEngine.destroy()
+        Log.d(tag, "Agora RTC Engine destroyed. isEngineInitialized = false")
     }
 }
 
