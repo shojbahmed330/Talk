@@ -1,5 +1,7 @@
 package com.example.realtimecalltranslation.ui
 
+import android.content.Context // Added import
+import android.provider.CallLog // Added import
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,8 +18,10 @@ import com.example.realtimecalltranslation.util.PollyTTSHelper
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
+import com.example.realtimecalltranslation.util.CallLogUtils // Added import
 
 class CallScreenViewModel(
+    private val applicationContext: Context, // Added applicationContext
     private val audioRecorderHelper: AudioRecorderHelper,
     private val s3Uploader: S3Uploader,
     private val amazonTranscribeHelper: AmazonTranscribeHelper,
@@ -39,6 +43,8 @@ class CallScreenViewModel(
         private set
 
     private val tag = "CallScreenViewModel"
+    private var callStartTimeMillis: Long = 0L
+    private var currentCallChannel: String? = null
 
     fun handleRecordAndTranscribePressed() {
         if (isRecording) {
@@ -176,14 +182,36 @@ class CallScreenViewModel(
     }
 
     // Agora-related methods
-    fun joinCall(channel: String, token: String?, appId: String) {
+    fun joinCall(channel: String, token: String?, appId: String) { // Assuming appId is still needed
         agoraManager.joinChannel(channel, token, 0)
-        Log.d(tag, "Joined Agora channel: $channel")
+        this.currentCallChannel = channel
+        this.callStartTimeMillis = System.currentTimeMillis()
+        Log.d(tag, "Joined Agora channel: $channel, recording start time.")
     }
 
     fun leaveCall() {
         agoraManager.leaveChannel()
+        logCurrentCall() // Call new private method to log the call
         Log.d(tag, "Left Agora channel")
+    }
+
+    private fun logCurrentCall() {
+        if (callStartTimeMillis > 0 && !currentCallChannel.isNullOrBlank()) {
+            val durationSeconds = (System.currentTimeMillis() - callStartTimeMillis) / 1000
+
+            CallLogUtils.addCallToDeviceLog(
+                applicationContext,
+                currentCallChannel,
+                CallLog.Calls.OUTGOING_TYPE, // Assuming outgoing, adjust if type is known differently
+                callStartTimeMillis,
+                durationSeconds
+            )
+            Log.d(tag, "Attempted to log call: Number: $currentCallChannel, Duration: $durationSeconds s")
+
+            // Reset for next call
+            callStartTimeMillis = 0L
+            currentCallChannel = null
+        }
     }
 
     fun toggleMute(isMuted: Boolean) {
@@ -207,9 +235,11 @@ class CallScreenViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // leaveCall() is called here, which now includes logCurrentCall()
+        // If there's any specific order needed (e.g. log before full cleanup), ensure leaveCall handles it.
         stopOngoingRecordingAndCleanup()
         stopOngoingTTS()
-        leaveCall()
+        leaveCall() // This will attempt to log the call if it was active
         Log.d(tag, "ViewModel cleared.")
     }
 }

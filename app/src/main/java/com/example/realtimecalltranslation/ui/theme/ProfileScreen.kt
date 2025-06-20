@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter // Added import
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -150,63 +151,59 @@ fun ProfileScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(110.dp)
+                        .size(110.dp) // This is the outer clickable Box size
                         .clickable { imagePickerLauncher.launch("image/*") }
                 ) {
-                    key(imageDataSource) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            val imageRequest = when (imageDataSource) {
-                                is ByteArray -> ImageRequest.Builder(LocalContext.current)
-                                    .data(imageDataSource)
-                                    .size(Size(256, 256))
-                                    .build()
-                                is String -> ImageRequest.Builder(LocalContext.current)
-                                    .data(imageDataSource)
-                                    .crossfade(true)
-                                    .size(Size(256, 256))
-                                    .build()
-                                else -> ImageRequest.Builder(LocalContext.current)
-                                    .data(user.profilePicUrl ?: Icons.Filled.Person)
-                                    .crossfade(true)
-                                    .size(Size(256, 256))
-                                    .build()
+                    key(imageDataSource, user.profilePicUrl) { // Updated key
+                        // This inner Box is for the image/placeholder itself
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize() // Fill the 110.dp Box
+                                .clip(CircleShape)
+                                .background(mainWhite, CircleShape) // Background for the circle
+                                .border(4.dp, mainWhite, CircleShape), // Border for the circle
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val modelToLoad: Any? = imageDataSource ?: user.profilePicUrl
+
+                            if (modelToLoad is ByteArray || (modelToLoad is String && modelToLoad.isNotBlank())) {
+                                // Valid model for Coil: ByteArray or non-blank String (URL/URI)
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(modelToLoad)
+                                        .crossfade(true)
+                                        // .size(Size(256, 256)) // Optional
+                                        .build(),
+                                    contentDescription = user.name ?: "User Avatar",
+                                    modifier = Modifier.fillMaxSize(), // Fill the parent Box (which is already clipped)
+                                    contentScale = ContentScale.Crop,
+                                    onError = { error ->
+                                        Log.e("ProfileScreenImgLoad", "Error loading image: $modelToLoad", error.result.throwable)
+                                    }
+                                )
+                            } else {
+                                // Fallback to placeholder Icon if no valid image data
+                                Image(
+                                    imageVector = Icons.Filled.Person, // Default placeholder
+                                    contentDescription = user.name ?: "User Avatar Placeholder",
+                                    modifier = Modifier.size(60.dp), // Adjust size of the icon within the circle
+                                    contentScale = ContentScale.Fit,
+                                    colorFilter = ColorFilter.tint(mainRed.copy(alpha = 0.7f)) // Tint for the placeholder
+                                )
                             }
-                            AsyncImage(
-                                model = imageRequest,
-                                contentDescription = "User Avatar",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .background(mainWhite, CircleShape)
-                                    .border(4.dp, mainWhite, CircleShape),
-                                contentScale = ContentScale.Crop,
-                                onState = { state ->
-                                    val modelTypeForLog = when (imageDataSource) {
-                                        is ByteArray -> "ByteArray[size=${imageDataSource.size}]"
-                                        is String -> imageDataSource
-                                        else -> "null or default"
-                                    }
-                                    when (state) {
-                                        is AsyncImagePainter.State.Loading -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Loading")
-                                        is AsyncImagePainter.State.Success -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Success")
-                                        is AsyncImagePainter.State.Error -> Log.e("ProfileScreenImgLoad", "Error with Model: $modelTypeForLog", state.result.throwable)
-                                        is AsyncImagePainter.State.Empty -> Log.d("AsyncImageState", "Model: $modelTypeForLog -> State: Empty")
-                                    }
-                                }
-                            )
-                            // Edit Icon Overlay
-                            Icon(
-                                imageVector = Icons.Filled.PhotoCamera,
-                                contentDescription = "Change Picture",
-                                tint = mainWhite.copy(alpha = 0.9f),
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .size(30.dp)
-                                    .background(mainRed.copy(alpha = 0.7f), CircleShape)
-                                    .padding(4.dp)
-                            )
                         }
                     }
+                    // Edit Icon Overlay (should be outside the key block, but inside the clickable Box)
+                    Icon(
+                        imageVector = Icons.Filled.PhotoCamera,
+                        contentDescription = "Change Picture",
+                        tint = mainWhite.copy(alpha = 0.9f),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(30.dp)
+                            .background(mainRed.copy(alpha = 0.7f), CircleShape)
+                            .padding(4.dp)
+                    )
                 }
             }
 

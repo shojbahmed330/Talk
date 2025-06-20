@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
                 val amazonTranscribeHelper = remember { AmazonTranscribeHelper(awsAccessKey, awsSecretKey, s3BucketName, s3Region) }
                 val pollyHelper = remember { PollyTTSHelper(context = applicationContext, accessKey = awsAccessKey, secretKey = awsSecretKey) }
 
-                val callScreenViewModelFactory = CallScreenViewModelFactory(audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
+                val callScreenViewModelFactory = CallScreenViewModelFactory(applicationContext, audioRecorderHelper, s3Uploader, amazonTranscribeHelper, pollyHelper, agoraManager, RAPID_API_KEY_PLACEHOLDER)
                 val callScreenViewModel: CallScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
                 DisposableEffect(Unit) { onDispose { agoraManager.destroy(); pollyHelper.release() } }
