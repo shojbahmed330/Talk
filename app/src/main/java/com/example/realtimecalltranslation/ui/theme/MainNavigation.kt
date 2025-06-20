@@ -44,7 +44,7 @@ fun MainNavigation(
     val demoCallLogs = listOf(
         CallLog(
             user = demoUsers[0],
-            message = "Navigation discussion",
+            message = "Incoming Call", // Simplified
             callType = CallType.INCOMING,
             isMissed = false,
             formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 300000L).toString(), // 5 mins ago
@@ -53,7 +53,7 @@ fun MainNavigation(
         ),
         CallLog(
             user = demoUsers[1],
-            message = "Missed this important call!",
+            message = "Missed Call", // Simplified
             callType = CallType.MISSED,
             isMissed = true,
             formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 600000L).toString(), // 10 mins ago
@@ -62,7 +62,7 @@ fun MainNavigation(
         ),
         CallLog(
             user = demoUsers[2],
-            message = "Planning outgoing features",
+            message = "Outgoing Call", // Simplified
             callType = CallType.OUTGOING,
             isMissed = false,
             formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 1200000L).toString(), // 20 mins ago

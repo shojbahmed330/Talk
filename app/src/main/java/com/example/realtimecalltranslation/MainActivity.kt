@@ -123,10 +123,17 @@ class MainActivity : ComponentActivity() {
                             val isMissedCall = index == 2 // Let's make the 3rd call a missed call for variety
                             val durationSeconds = if (isMissedCall) 0L else demoDurations.getOrElse(index) { 30L }
 
+                            val currentCallType = if (isMissedCall) CallType.MISSED else callType
+                            val simpleMessage = when (currentCallType) {
+                                CallType.INCOMING -> "Incoming Call"
+                                CallType.OUTGOING -> "Outgoing Call"
+                                CallType.MISSED -> "Missed Call"
+                            }
+
                             CallLog(
                                 user = user,
-                                message = demoMessages.getOrElse(index) { "Sample call ${index + 1}" },
-                                callType = if (isMissedCall) CallType.MISSED else callType,
+                                message = simpleMessage, // Use simplified message
+                                callType = currentCallType,
                                 isMissed = isMissedCall,
                                 formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", callTimestamp).toString(),
                                 timestamp = callTimestamp,

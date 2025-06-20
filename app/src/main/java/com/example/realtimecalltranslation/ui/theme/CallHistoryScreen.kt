@@ -50,8 +50,7 @@ fun CallHistoryScreen(
     val filteredLogs = callLogs
         .filter { it.callType == activeTab || (it.isMissed && activeTab == CallType.MISSED) }
         .filter { search.isBlank() || it.user.name.contains(search, ignoreCase = true) }
-        .takeLast(50)
-        .asReversed()
+        .take(50) // Take the first 50 from the already newest-first sorted and filtered list
 
     val recentUsers = callLogs
         .filter { it.callType == activeTab || (it.isMissed && activeTab == CallType.MISSED) }

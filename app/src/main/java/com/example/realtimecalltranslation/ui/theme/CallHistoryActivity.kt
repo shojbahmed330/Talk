@@ -63,30 +63,30 @@ fun CallHistoryScreenContent() {
     val callLogs = if (hasPermission) getRealCallLogs(context) else listOf(
         CallLog(
             user = User("1", "Demo User", "017XXXXXXXX", null),
-            message = "Demo incoming call details",
+            message = "Incoming Call", // Simplified
             callType = CallType.INCOMING,
             isMissed = false,
-            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 300000L).toString(), // Approx 5 mins ago
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 300000L).toString(),
             timestamp = now - 300000L,
-            duration = 60L // 1 minute
+            duration = 60L
         ),
         CallLog(
             user = User("2", "Missed Caller", "018XXXXXXXX", null),
-            message = "Important missed call",
+            message = "Missed Call", // Simplified
             callType = CallType.MISSED,
             isMissed = true,
-            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 600000L).toString(), // Approx 10 mins ago
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 600000L).toString(),
             timestamp = now - 600000L,
             duration = 0L
         ),
         CallLog(
             user = User("3", "Outgoing Guy", "019XXXXXXXX", null),
-            message = "Outgoing discussion points",
+            message = "Outgoing Call", // Simplified
             callType = CallType.OUTGOING,
             isMissed = false,
-            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 900000L).toString(), // Approx 15 mins ago
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 900000L).toString(),
             timestamp = now - 900000L,
-            duration = 120L // 2 minutes
+            duration = 120L
         )
     )
 

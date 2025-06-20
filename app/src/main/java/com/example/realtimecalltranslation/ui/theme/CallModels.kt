@@ -89,20 +89,19 @@ fun getRealCallLogs(context: Context): List<CallLog> {
 
             val user = User(id = number, name = name ?: number, phone = number, profilePicUrl = null)
 
-            // Construct a more informative message based on call type
-            val message = when (callLogType) {
-                CallType.INCOMING -> "Incoming call from $name"
-                CallType.OUTGOING -> "Outgoing call to $name"
-                CallType.MISSED -> if (it.getInt(typeIdx) == AndroidCallLog.Calls.REJECTED_TYPE) "Rejected call from $name" else "Missed call from $name"
-                // else -> "Call with $name" // Fallback - This line is commented out as it makes the when exhaustive with current CallTypes
+            // Construct a simplified message based on call type
+            val simpleMessage = when (callLogType) {
+                CallType.INCOMING -> "Incoming Call"
+                CallType.OUTGOING -> "Outgoing Call"
+                CallType.MISSED -> "Missed Call" // This also covers REJECTED, BLOCKED etc. as they map to CallType.MISSED
             }
 
             logs.add(
                 CallLog(
                     user = user,
-                    message = message,
+                    message = simpleMessage, // Use the simplified message
                     callType = callLogType,
-                    isMissed = (callLogType == CallType.MISSED), // isMissed can be more specific if needed
+                    isMissed = (callLogType == CallType.MISSED),
                     formattedDateTime = formattedDateTime,
                     timestamp = dateTimestamp,
                     duration = callDurationSeconds
