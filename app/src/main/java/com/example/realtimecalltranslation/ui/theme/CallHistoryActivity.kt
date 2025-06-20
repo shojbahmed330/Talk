@@ -3,6 +3,7 @@ package com.example.realtimecalltranslation.ui.theme
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.text.format.DateFormat // Added import
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -58,11 +59,35 @@ fun CallHistoryScreenContent() {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    val now = System.currentTimeMillis()
     val callLogs = if (hasPermission) getRealCallLogs(context) else listOf(
-        // Fallback demo call logs
-        CallLog(user = User("1", "Demo User", "017XXXXXXXX", null), message = "Demo incoming", callType = CallType.INCOMING, isMissed = false, time = "5 min ago"),
-        CallLog(user = User("2", "Missed Caller", "018XXXXXXXX", null), message = "Missed call", callType = CallType.MISSED, isMissed = true, time = "10 min ago"),
-        CallLog(user = User("3", "Outgoing Guy", "019XXXXXXXX", null), message = "Outgoing call", callType = CallType.OUTGOING, isMissed = false, time = "15 min ago")
+        CallLog(
+            user = User("1", "Demo User", "017XXXXXXXX", null),
+            message = "Demo incoming call details",
+            callType = CallType.INCOMING,
+            isMissed = false,
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 300000L).toString(), // Approx 5 mins ago
+            timestamp = now - 300000L,
+            duration = 60L // 1 minute
+        ),
+        CallLog(
+            user = User("2", "Missed Caller", "018XXXXXXXX", null),
+            message = "Important missed call",
+            callType = CallType.MISSED,
+            isMissed = true,
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 600000L).toString(), // Approx 10 mins ago
+            timestamp = now - 600000L,
+            duration = 0L
+        ),
+        CallLog(
+            user = User("3", "Outgoing Guy", "019XXXXXXXX", null),
+            message = "Outgoing discussion points",
+            callType = CallType.OUTGOING,
+            isMissed = false,
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 900000L).toString(), // Approx 15 mins ago
+            timestamp = now - 900000L,
+            duration = 120L // 2 minutes
+        )
     )
 
     // Use activeUsers if needed in CallHistoryScreen, otherwise remove
