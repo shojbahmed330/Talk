@@ -47,7 +47,7 @@ import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.User
 import com.example.realtimecalltranslation.ui.theme.formatTimeAgo // Added import
 import com.example.realtimecalltranslation.ui.theme.CallType // Added import
-import androidx.compose.foundation.shape.RoundedCornerShape // Already imported but good to note
+// Removed duplicate: import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Divider // Added import
 import androidx.compose.material3.MaterialTheme // Added import for MaterialTheme.colorScheme
 
