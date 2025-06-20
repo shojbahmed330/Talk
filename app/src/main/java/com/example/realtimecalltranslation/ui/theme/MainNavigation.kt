@@ -2,6 +2,7 @@ package com.example.realtimecalltranslation.ui.theme
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.text.format.DateFormat // Added import
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
@@ -33,15 +34,41 @@ fun MainNavigation(
 
     val context = LocalContext.current
 
+    val now = System.currentTimeMillis()
     val demoUsers = listOf(
-        User("1", "Demo User", "017XXXXXXXX", null),
-        User("2", "Has Pic", "018XXXXXXXX", "https://randomuser.me/api/portraits/men/1.jpg"),
-        User("3", "No Pic", "019XXXXXXXX", null)
+        User("1", "Demo User Nav", "01700000000", null),
+        User("2", "Has Pic Nav", "01800000000", "https://randomuser.me/api/portraits/men/1.jpg"),
+        User("3", "No Pic Nav", "01900000000", null)
     )
+
     val demoCallLogs = listOf(
-        CallLog(demoUsers[0], "Can you translate this", CallType.INCOMING, false, "5 min ago"),
-        CallLog(demoUsers[1], "Missed call", CallType.MISSED, true, "10 min ago"),
-        CallLog(demoUsers[2], "Outgoing call", CallType.OUTGOING, false, "20 min ago")
+        CallLog(
+            user = demoUsers[0],
+            message = "Navigation discussion",
+            callType = CallType.INCOMING,
+            isMissed = false,
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 300000L).toString(), // 5 mins ago
+            timestamp = now - 300000L,
+            duration = 120L // 2 minutes
+        ),
+        CallLog(
+            user = demoUsers[1],
+            message = "Missed this important call!",
+            callType = CallType.MISSED,
+            isMissed = true,
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 600000L).toString(), // 10 mins ago
+            timestamp = now - 600000L,
+            duration = 0L
+        ),
+        CallLog(
+            user = demoUsers[2],
+            message = "Planning outgoing features",
+            callType = CallType.OUTGOING,
+            isMissed = false,
+            formattedDateTime = DateFormat.format("dd MMM, h:mm a", now - 1200000L).toString(), // 20 mins ago
+            timestamp = now - 1200000L,
+            duration = 300L // 5 minutes
+        )
     )
 
     val hasPermission = ContextCompat.checkSelfPermission(

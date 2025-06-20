@@ -43,8 +43,26 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import coil.size.Size
 import com.example.realtimecalltranslation.ui.theme.CallLog
-import com.example.realtimecalltranslation.ui.theme.CallLogRow
+// CallLogRow will be replaced by custom layout
 import com.example.realtimecalltranslation.ui.theme.User
+import com.example.realtimecalltranslation.ui.theme.formatTimeAgo // Added import
+import com.example.realtimecalltranslation.ui.theme.CallType // Added import
+import androidx.compose.foundation.shape.RoundedCornerShape // Already imported but good to note
+import androidx.compose.material3.Divider // Added import
+import androidx.compose.material3.MaterialTheme // Added import for MaterialTheme.colorScheme
+
+private fun formatDuration(seconds: Long?): String {
+    if (seconds == null || seconds < 0) return ""
+    if (seconds == 0L) return "0s"
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return buildString {
+        if (hours > 0) append("${hours}h ")
+        if (minutes > 0) append("${minutes}m ")
+        if (secs > 0 || (hours == 0L && minutes == 0L)) append("${secs}s")
+    }.trim()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -303,18 +321,47 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxSize().padding(top = 6.dp)
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp)
+                        modifier = Modifier.fillMaxSize().padding(vertical = 8.dp) // Horizontal padding handled by items now
                     ) {
-                        items(callLogs) { log ->
-                            CallLogRow(
-                                log = log,
-                                onProfile = {},
-                                onCall = onCall,
-                                mainRed = mainRed,
-                                accentRed = mainRed,
-                                lightRed = mainWhite,
-                                cardBg = mainWhite
-                            )
+                        val displayedLogs = if (callLogs.size > 50) callLogs.take(50) else callLogs
+                        items(displayedLogs) { log ->
+                            val callTypeString = when (log.callType) {
+                                CallType.INCOMING -> "Incoming"
+                                CallType.OUTGOING -> "Outgoing"
+                                CallType.MISSED -> "Missed"
+                            }
+                            val durationString = formatDuration(log.duration)
+                            val timeAgoString = formatTimeAgo(log.timestamp)
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp, horizontal = 16.dp) // Item specific horizontal padding
+                                    .background(mainWhite.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    // UserAvatar(user = log.user, size = 40.dp)
+                                    // Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "${log.user.name} (${log.user.phone})",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = mainRed,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(text = callTypeString, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(text = log.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface) // Original message
+                                Spacer(Modifier.height(4.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(text = "Duration: $durationString", fontSize = 12.sp, color = Color.Gray)
+                                    Text(text = timeAgoString, fontSize = 12.sp, color = Color.Gray)
+                                }
+                                Text(text = log.formattedDateTime, fontSize = 12.sp, color = Color.Gray)
+                            }
+                            Divider(color = mainRed.copy(alpha = 0.2f), thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
                         }
                     }
                 }

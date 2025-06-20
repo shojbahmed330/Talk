@@ -33,6 +33,7 @@ import com.example.realtimecalltranslation.ui.theme.CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType
 import com.example.realtimecalltranslation.ui.theme.User
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs
+import com.example.realtimecalltranslation.ui.theme.getContactDetailsByNumber // Added import
 import com.example.realtimecalltranslation.util.AudioRecorderHelper
 import com.example.realtimecalltranslation.util.AmazonTranscribeHelper
 import com.example.realtimecalltranslation.util.PollyTTSHelper
@@ -104,11 +105,36 @@ class MainActivity : ComponentActivity() {
                     User("4", "JibOn", "016XXXXXXXX", "https://randomuser.me/api/portraits/women/2.jpg"),
                     User("5", "Maa GP", "015XXXXXXXX", "https://randomuser.me/api/portraits/women/26.jpg")
                 )
-                val demoCallLogsState = remember { mutableStateListOf<CallLog>().apply {
-                    addAll(demoUsers.mapIndexed { index, user ->
-                        CallLog(user, "Demo call message ${index+1}", if (index % 2 == 0) CallType.INCOMING else CallType.OUTGOING, index == 1, "${(index+1)*5} min ago")
-                    })
-                } }
+                val demoCallLogsState = remember {
+                    mutableStateListOf<CallLog>().apply {
+                        val now = System.currentTimeMillis()
+                        val demoDurations = listOf(60L, 125L, 0L, 300L, 15L) // Sample durations in seconds
+                        val demoMessages = listOf(
+                            "Discussing project details",
+                            "Quick check-in",
+                            "Missed this one",
+                            "Long conversation about weekend",
+                            "Regarding the upcoming event"
+                        )
+
+                        addAll(demoUsers.mapIndexed { index, user ->
+                            val callTimestamp = now - (index * 5 * 60 * 1000L) - (index * 30000L) // Offset by index for variety
+                            val callType = if (index % 2 == 0) CallType.INCOMING else CallType.OUTGOING
+                            val isMissedCall = index == 2 // Let's make the 3rd call a missed call for variety
+                            val durationSeconds = if (isMissedCall) 0L else demoDurations.getOrElse(index) { 30L }
+
+                            CallLog(
+                                user = user,
+                                message = demoMessages.getOrElse(index) { "Sample call ${index + 1}" },
+                                callType = if (isMissedCall) CallType.MISSED else callType,
+                                isMissed = isMissedCall,
+                                formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", callTimestamp).toString(),
+                                timestamp = callTimestamp,
+                                duration = durationSeconds
+                            )
+                        })
+                    }
+                }
 
                 val hasPermission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
                 var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
@@ -215,19 +241,44 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("number") { type = NavType.StringType })
                     ) { backStackEntry ->
                         val number = backStackEntry.arguments?.getString("number") ?: ""
-                        if (userToLog == null || userToLog?.phone != number) {
-                            userToLog = usersToDisplay.find { it.phone == number } ?: User(id = number, name = number, phone = number)
+                        // Use a local variable for intermediate updates to avoid multiple recompositions if userToLog is frequently changed
+                        var updatedUserToLog = userToLog
+
+                        if (updatedUserToLog == null || updatedUserToLog.phone != number) {
+                            updatedUserToLog = usersToDisplay.find { it.phone == number }
+                                ?: User(id = number, name = number, phone = number, profilePicUrl = null)
                         }
-                        CallScreen(
-                            channel = number,
-                            token = null,
-                            appId = agoraAppId,
-                            localIsUsa = true,
-                            onCallEnd = { navController.popBackStack() },
-                            mainRed = mainRed,
-                            mainWhite = mainWhite,
-                            callScreenViewModel = callScreenViewModel
-                        )
+
+                        // Attempt to fetch contact details if profilePicUrl is null
+                        if (updatedUserToLog != null && updatedUserToLog.profilePicUrl == null) {
+                            val contactDetails = getContactDetailsByNumber(applicationContext, updatedUserToLog.phone)
+                            if (contactDetails != null) {
+                                updatedUserToLog = updatedUserToLog.copy(
+                                    name = contactDetails.name, // Update name from contact details
+                                    profilePicUrl = contactDetails.photoUri ?: updatedUserToLog.profilePicUrl // Use new photoUri if available
+                                )
+                            }
+                        }
+
+                        // Update the actual state variable once all modifications are done
+                        userToLog = updatedUserToLog
+
+                        if (userToLog != null) {
+                            CallScreen(
+                                channel = userToLog!!.phone, // Use phone from userToLog
+                                token = null,
+                                appId = agoraAppId,
+                                localIsUsa = true,
+                                onCallEnd = { navController.popBackStack() },
+                                mainRed = mainRed,
+                                mainWhite = mainWhite,
+                                callScreenViewModel = callScreenViewModel,
+                                user = userToLog // Pass the updated user object
+                            )
+                        } else {
+                            // Optional: Handle the case where userToLog is still null, e.g., pop back or show error
+                            // navController.popBackStack()
+                        }
                     }
                 }
             }
