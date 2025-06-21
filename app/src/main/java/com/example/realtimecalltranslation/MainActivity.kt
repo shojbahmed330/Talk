@@ -8,6 +8,10 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.CallLog as AndroidCallLogHost // Alias for CallLog provider URI
 import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.platform.LocalContext
@@ -154,11 +158,43 @@ class MainActivity : ComponentActivity() {
 
                 val hasPermission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
                 var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
-                var callLogRefreshTrigger by remember { mutableIntStateOf(0) }
+                var callLogRefreshTrigger by remember { mutableIntStateOf(0) } // Renamed for clarity if needed, but fine as is
+
+                // Content Observer for Call Log changes
+                val callLogObserver = remember {
+                    object : ContentObserver(Handler(Looper.getMainLooper())) {
+                        override fun onChange(selfChange: Boolean) {
+                            super.onChange(selfChange)
+                            Log.d("MainActivity", "CallLog ContentObserver onChange triggered. Refreshing call logs.")
+                            callLogRefreshTrigger++ // Increment to trigger LaunchedEffect
+                        }
+                    }
+                }
+
+                DisposableEffect(Unit) {
+                    Log.d("MainActivity", "Registering CallLog ContentObserver.")
+                    applicationContext.contentResolver.registerContentObserver(
+                        AndroidCallLogHost.Calls.CONTENT_URI,
+                        true,
+                        callLogObserver
+                    )
+                    onDispose {
+                        Log.d("MainActivity", "Unregistering CallLog ContentObserver.")
+                        applicationContext.contentResolver.unregisterContentObserver(callLogObserver)
+                    }
+                }
 
                 LaunchedEffect(hasPermission, callLogRefreshTrigger) {
-                    Log.d("MainActivity", "Refreshing call logs, trigger: $callLogRefreshTrigger, HasPermission: $hasPermission")
-                    callLogsFromSource = if (hasPermission) getRealCallLogs(applicationContext) else demoCallLogsState
+                    Log.d("MainActivity", "Refreshing call logs, trigger value: $callLogRefreshTrigger, HasPermission: $hasPermission")
+                    if (hasPermission) {
+                        // Potentially add a small delay if onChange is called too rapidly by system
+                        // kotlinx.coroutines.delay(250) // Optional: debounce rapid changes
+                        callLogsFromSource = getRealCallLogs(applicationContext)
+                        Log.d("MainActivity", "Call logs fetched. Count: ${callLogsFromSource.size}")
+                    } else {
+                        callLogsFromSource = demoCallLogsState
+                        Log.d("MainActivity", "No permission, using demo logs. Count: ${callLogsFromSource.size}")
+                    }
                 }
 
                 var userToLog by remember { mutableStateOf<User?>(null) } // This state will hold the user for the call screen
