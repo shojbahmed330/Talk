@@ -1,5 +1,6 @@
-package com.example.realtimecalltranslation.ui
+package com.example.realtimecalltranslation.ui // অথবা .ui.theme আপনার স্ট্রাকচার অনুযায়ী
 
+import android.util.Log // এই import লাইনটি যোগ করুন যদি না থাকে
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,10 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.UserAvatar
+import com.example.realtimecalltranslation.ui.theme.User // User.kt থেকে
+import com.example.realtimecalltranslation.ui.theme.UserAvatar // User.kt থেকে
 import kotlinx.coroutines.delay
-import com.example.realtimecalltranslation.ui.CallScreenViewModel // Import the ViewModel
+// CallScreenViewModel import টা CallScreenViewModel.kt ফাইলের প্যাকেজ অনুযায়ী হবে
+// import com.example.realtimecalltranslation.ui.CallScreenViewModel
 
 @Composable
 fun CallScreen(
@@ -33,12 +35,15 @@ fun CallScreen(
     appId: String,
     localIsUsa: Boolean,
     onCallEnd: () -> Unit,
-    mainRed: Color,
-    mainWhite: Color,
+    mainRed: Color, // এগুলো সম্ভবত Theme থেকে আসবে বা লোকালভাবে ডিফাইন করা
+    mainWhite: Color, // এগুলো সম্ভবত Theme থেকে আসবে বা লোকালভাবে ডিফাইন করা
     callScreenViewModel: CallScreenViewModel,
-    user: User? = null // Ensure user is passed as a parameter
+    user: User? = null
 ) {
-    // Animation for pulsing effect around avatar
+    // --- ছবির ডিবাগিং লগ শুরু ---
+    Log.d("PicDebugCallScreen", "CallScreen received User - Name: ${user?.name}, Phone: ${user?.phone}, ProfilePicUrl: ${user?.profilePicUrl}")
+    // --- ছবির ডিবাগিং লগ শেষ ---
+
     val infiniteTransition = rememberInfiniteTransition()
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -49,25 +54,22 @@ fun CallScreen(
         )
     )
 
-    // States for buttons
     var isMuted by rememberSaveable { mutableStateOf(false) }
     var isSpeakerOn by rememberSaveable { mutableStateOf(false) }
     var isOnHold by rememberSaveable { mutableStateOf(false) }
     var buttonScale by remember { mutableStateOf(1f) }
 
-    // Simulate button press animation
     LaunchedEffect(isMuted, isSpeakerOn, isOnHold) {
         buttonScale = 0.9f
         delay(100)
         buttonScale = 1f
     }
 
-    // Initialize Agora call
     LaunchedEffect(Unit) {
-        callScreenViewModel.joinCall(channel, token, appId, user?.name) // Pass user?.name
+        // user?.name পাস করা হচ্ছে ViewModel এ
+        callScreenViewModel.joinCall(channel, token, appId, user?.name)
     }
 
-    // Clean up on exit
     DisposableEffect(Unit) {
         onDispose {
             callScreenViewModel.leaveCall()
@@ -81,15 +83,13 @@ fun CallScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Call status and name
         Text(
-            text = "In Call: ${user?.name ?: channel}", // Ensure user is accessible
+            text = "In Call: ${user?.name ?: channel}",
             style = MaterialTheme.typography.titleLarge,
             color = mainRed,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(8.dp))
-        // Phone number display
         Text(
             text = user?.phone ?: channel,
             style = MaterialTheme.typography.bodyLarge,
@@ -98,7 +98,6 @@ fun CallScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        // Avatar with pulsing animation
         Box(
             modifier = Modifier
                 .size(150.dp)
@@ -107,7 +106,7 @@ fun CallScreen(
             contentAlignment = Alignment.Center
         ) {
             UserAvatar(
-                user = user ?: User("0", "Unknown", channel, null),
+                user = user ?: User("0", "UnknownFallback", channel, null), // Fallback User
                 size = 120.dp,
                 modifier = Modifier
                     .size(120.dp)
@@ -116,7 +115,6 @@ fun CallScreen(
         }
         Spacer(Modifier.height(24.dp))
 
-        // Call duration timer
         var seconds by remember { mutableStateOf(0) }
         LaunchedEffect(Unit) {
             while (true) {
@@ -132,14 +130,12 @@ fun CallScreen(
         )
         Spacer(Modifier.weight(1f))
 
-        // Control buttons grid
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            // Mute button
             IconButton(
                 onClick = {
                     isMuted = !isMuted
@@ -158,8 +154,6 @@ fun CallScreen(
                     modifier = Modifier.size(32.dp)
                 )
             }
-
-            // Speaker button
             IconButton(
                 onClick = {
                     isSpeakerOn = !isSpeakerOn
@@ -178,8 +172,6 @@ fun CallScreen(
                     modifier = Modifier.size(32.dp)
                 )
             }
-
-            // Hold button
             IconButton(
                 onClick = {
                     isOnHold = !isOnHold
@@ -199,10 +191,7 @@ fun CallScreen(
                 )
             }
         }
-
         Spacer(Modifier.height(16.dp))
-
-        // End Call button
         IconButton(
             onClick = onCallEnd,
             modifier = Modifier
