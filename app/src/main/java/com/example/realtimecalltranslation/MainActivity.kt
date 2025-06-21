@@ -7,7 +7,9 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
@@ -155,10 +157,47 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Permissions Management
+                var hasReadCallLogPermission by remember { mutableStateOf(ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED) }
+                var hasReadContactsPermission by remember { mutableStateOf(ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) }
 
-                val hasPermission = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
+                val requestReadCallLogLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                    onResult = { isGranted ->
+                        hasReadCallLogPermission = isGranted
+                        if (isGranted) {
+                            callLogRefreshTrigger++ // Trigger refresh if permission granted
+                        } else {
+                            Toast.makeText(applicationContext, "Read Call Log permission denied. Call history may be incomplete.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                )
+
+                val requestReadContactsLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                    onResult = { isGranted ->
+                        hasReadContactsPermission = isGranted
+                        if (isGranted) {
+                            callLogRefreshTrigger++ // Trigger refresh to fetch contact details
+                        } else {
+                            Toast.makeText(applicationContext, "Read Contacts permission denied. Contact photos will not be shown.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                )
+
+                LaunchedEffect(Unit) { // Request permissions on initial launch if not granted
+                    if (!hasReadCallLogPermission) {
+                        requestReadCallLogLauncher.launch(Manifest.permission.READ_CALL_LOG)
+                    }
+                    if (!hasReadContactsPermission) {
+                        // Optionally, delay this or tie it to a specific user action if preferred
+                        // For now, request upfront along with call log permission
+                        requestReadContactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+                    }
+                }
+
                 var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
-                var callLogRefreshTrigger by remember { mutableIntStateOf(0) } // Renamed for clarity if needed, but fine as is
+                var callLogRefreshTrigger by remember { mutableIntStateOf(0) }
 
                 // Content Observer for Call Log changes
                 val callLogObserver = remember {
@@ -184,16 +223,15 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(hasPermission, callLogRefreshTrigger) {
-                    Log.d("MainActivity", "Refreshing call logs, trigger value: $callLogRefreshTrigger, HasPermission: $hasPermission")
-                    if (hasPermission) {
-                        // Potentially add a small delay if onChange is called too rapidly by system
-                        // kotlinx.coroutines.delay(250) // Optional: debounce rapid changes
+                LaunchedEffect(hasReadCallLogPermission, hasReadContactsPermission, callLogRefreshTrigger) {
+                    Log.d("MainActivity", "Refreshing call logs. Trigger: $callLogRefreshTrigger, ReadCallLog: $hasReadCallLogPermission, ReadContacts: $hasReadContactsPermission")
+                    if (hasReadCallLogPermission) { // READ_CALL_LOG is essential to get any logs
+                        // getRealCallLogs now internally checks for READ_CONTACTS for fetching photo URIs
                         callLogsFromSource = getRealCallLogs(applicationContext)
                         Log.d("MainActivity", "Call logs fetched. Count: ${callLogsFromSource.size}")
                     } else {
-                        callLogsFromSource = demoCallLogsState
-                        Log.d("MainActivity", "No permission, using demo logs. Count: ${callLogsFromSource.size}")
+                        callLogsFromSource = demoCallLogsState // Use demo logs if no READ_CALL_LOG permission
+                        Log.d("MainActivity", "No READ_CALL_LOG permission, using demo logs. Count: ${callLogsFromSource.size}")
                     }
                 }
 

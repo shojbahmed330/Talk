@@ -8,13 +8,13 @@ package com.example.realtimecalltranslation.ui.theme
 import com.example.realtimecalltranslation.ui.theme.User // Explicit import for clarity
 import android.content.Context
 import android.provider.CallLog as AndroidCallLog // Alias to avoid conflict if any
-import android.Manifest // For permission check, good practice though not strictly part of the move
-import android.content.pm.PackageManager // For permission check
-import androidx.core.content.ContextCompat // For permission check
-import android.util.Log // For logging errors
-import android.text.format.DateUtils // Added import
-// android.net.Uri will be needed for the new getRealCallLogs if it uses Uri.withAppendedPath, but it's not in the provided snippet.
-// The provided snippet for getRealCallLogs doesn't use Uri directly, so let's stick to what's in the provided snippet.
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import android.util.Log
+import android.text.format.DateUtils
+import android.provider.ContactsContract
+import android.net.Uri
 
 enum class CallType {
     INCOMING,
@@ -35,7 +35,10 @@ data class CallLog(
 fun getRealCallLogs(context: Context): List<CallLog> {
     val logs = mutableListOf<CallLog>()
 
-    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+    val hasReadCallLogPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED
+    val hasReadContactsPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+
+    if (!hasReadCallLogPermission) {
         Log.w("getRealCallLogs", "READ_CALL_LOG permission not granted. Returning empty list.")
         return logs
     }
@@ -43,13 +46,11 @@ fun getRealCallLogs(context: Context): List<CallLog> {
     val projection = arrayOf(
         AndroidCallLog.Calls.NUMBER,
         AndroidCallLog.Calls.TYPE,
-        AndroidCallLog.Calls.CACHED_NAME,
+        AndroidCallLog.Calls.CACHED_NAME, // Name as cached by the system dialer
         AndroidCallLog.Calls.DATE,
         AndroidCallLog.Calls.DURATION
     )
 
-    // Query all calls, sorted by date descending. No explicit limit here,
-    // ProfileScreen will handle showing "at least 50" for a specific user.
     val cursor = context.contentResolver.query(
         AndroidCallLog.Calls.CONTENT_URI,
         projection,
@@ -61,35 +62,52 @@ fun getRealCallLogs(context: Context): List<CallLog> {
     cursor?.use {
         val numberIdx = it.getColumnIndex(AndroidCallLog.Calls.NUMBER)
         val typeIdx = it.getColumnIndex(AndroidCallLog.Calls.TYPE)
-        val nameIdx = it.getColumnIndex(AndroidCallLog.Calls.CACHED_NAME)
+        val cachedNameIdx = it.getColumnIndex(AndroidCallLog.Calls.CACHED_NAME) // Use this for the cached name
         val dateIdx = it.getColumnIndex(AndroidCallLog.Calls.DATE)
         val durationIdx = it.getColumnIndex(AndroidCallLog.Calls.DURATION)
 
         while (it.moveToNext()) {
             val number = it.getString(numberIdx) ?: "Unknown Number"
-            var name = it.getString(nameIdx) // Can be null
-            if (name.isNullOrBlank()) {
-                name = number // Use number if name is not available
+            var contactName = it.getString(cachedNameIdx) // Get cached name from call log
+            var photoUri: String? = null
+
+            if (hasReadContactsPermission) {
+                val contactDetails = getContactDetailsByNumber(context, number)
+                if (contactDetails != null) {
+                    if (!contactDetails.name.isNullOrBlank()) { // Prefer contact name if available
+                        contactName = contactDetails.name
+                    }
+                    photoUri = contactDetails.photoUri
+                }
+            }
+
+            // Fallback to number if contactName is still blank
+            if (contactName.isNullOrBlank()) {
+                contactName = number
             }
 
             val callLogType = when (it.getInt(typeIdx)) {
                 AndroidCallLog.Calls.INCOMING_TYPE -> CallType.INCOMING
                 AndroidCallLog.Calls.OUTGOING_TYPE -> CallType.OUTGOING
                 AndroidCallLog.Calls.MISSED_TYPE -> CallType.MISSED
-                AndroidCallLog.Calls.VOICEMAIL_TYPE -> CallType.MISSED // Treat voicemail as missed for simplicity
-                AndroidCallLog.Calls.REJECTED_TYPE -> CallType.MISSED  // Treat rejected as missed
-                AndroidCallLog.Calls.BLOCKED_TYPE -> CallType.MISSED   // Treat blocked as missed
+                AndroidCallLog.Calls.VOICEMAIL_TYPE -> CallType.MISSED
+                AndroidCallLog.Calls.REJECTED_TYPE -> CallType.MISSED
+                AndroidCallLog.Calls.BLOCKED_TYPE -> CallType.MISSED
                 else -> CallType.MISSED
             }
 
             val dateTimestamp = it.getLong(dateIdx)
-            val callDurationSeconds = it.getLong(durationIdx) // Duration in seconds
+            val callDurationSeconds = it.getLong(durationIdx)
 
             val formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", dateTimestamp).toString()
 
-            val user = User(id = number, name = name ?: number, phone = number, profilePicUrl = null)
+            val user = User(
+                id = number, // Using phone number as ID for simplicity here
+                name = contactName ?: number, // Use fetched contact name or fallback
+                phone = number,
+                profilePicUrl = photoUri
+            )
 
-            // Construct a simplified message based on call type
             val simpleMessage = when (callLogType) {
                 CallType.INCOMING -> "Incoming Call"
                 CallType.OUTGOING -> "Outgoing Call"
@@ -113,6 +131,56 @@ fun getRealCallLogs(context: Context): List<CallLog> {
     }
     return logs
 }
+
+data class ContactDetails(val name: String?, val photoUri: String?)
+
+fun getContactDetailsByNumber(context: Context, phoneNumber: String): ContactDetails? {
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+        Log.w("getContactDetails", "READ_CONTACTS permission not granted. Cannot fetch contact details.")
+        return null
+    }
+
+    if (phoneNumber.isBlank()) {
+        return null
+    }
+
+    var contactName: String? = null
+    var photoUriString: String? = null
+
+    try {
+        val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
+        val projection = arrayOf(
+            ContactsContract.PhoneLookup.DISPLAY_NAME,
+            ContactsContract.PhoneLookup.PHOTO_URI // URI for the contact's full-size photo
+        )
+
+        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                val photoUriIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_URI)
+
+                if (nameIdx != -1) {
+                    contactName = cursor.getString(nameIdx)
+                }
+                if (photoUriIdx != -1) {
+                    photoUriString = cursor.getString(photoUriIdx)
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("getContactDetails", "Error fetching contact details for $phoneNumber: ${e.message}", e)
+        // Return null or default ContactDetails if an error occurs
+        return null
+    }
+
+    // Only return details if at least one piece of information was found, or always return if you want to allow partials
+    return if (contactName != null || photoUriString != null) {
+        ContactDetails(contactName, photoUriString)
+    } else {
+        null // No details found
+    }
+}
+
 
 // Add this import at the top of CallModels.kt if not already present
 // import android.text.format.DateUtils
