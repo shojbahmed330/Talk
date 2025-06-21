@@ -40,10 +40,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 
 data class Contact(val name: String, val phone: String)
 
-data class ContactDetails(
-    val name: String,
-    val photoUri: String?
-)
+// Removed data class ContactDetails - will use the one from CallModels.kt
 
 fun fetchContacts(context: Context): List<Contact> {
     val contacts = mutableListOf<Contact>()
@@ -70,43 +67,7 @@ fun fetchContacts(context: Context): List<Contact> {
     return contacts
 }
 
-fun getContactDetailsByNumber(context: Context, phoneNumber: String): ContactDetails? {
-    if (phoneNumber.isBlank()) {
-        return null
-    }
-    var contactDetails: ContactDetails? = null
-    val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
-    val projection = arrayOf(
-        ContactsContract.PhoneLookup.DISPLAY_NAME,
-        ContactsContract.PhoneLookup.PHOTO_URI
-    )
-
-    try {
-        val cursor = context.contentResolver.query(
-            uri,
-            projection,
-            null,
-            null,
-            null
-        )
-
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val nameIndex = it.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
-                val photoUriIndex = it.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_URI)
-
-                val name = if (nameIndex != -1) it.getString(nameIndex) else "Unknown"
-                val photoUri = if (photoUriIndex != -1) it.getString(photoUriIndex) else null
-
-                contactDetails = ContactDetails(name, photoUri)
-            }
-        }
-    } catch (e: Exception) {
-        // Log error or handle appropriately
-        Log.e("getContactDetails", "Error fetching contact details for $phoneNumber", e)
-    }
-    return contactDetails
-}
+// Removed fun getContactDetailsByNumber - will use the one from CallModels.kt
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
