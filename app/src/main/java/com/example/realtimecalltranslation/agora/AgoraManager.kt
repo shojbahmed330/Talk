@@ -101,7 +101,8 @@ object AgoraManager : IRtcEngineEventHandler() {
             buffer?.let {
                 val data = ByteArray(it.remaining())
                 it.get(data)
-                audioListener?.onRemoteAudioFrame(data, 0) // Updated to audioListener
+                // audioListener?.onRemoteAudioFrame(data, 0) // UID 0 is ambiguous here, using onPlaybackAudioFrameBeforeMixing instead
+                Log.d(tag, "onPlaybackAudioFrame called (UID not directly available here), size: ${data.size}. Relying on onPlaybackAudioFrameBeforeMixing for remote user audio.")
             }
             return true
         }
@@ -122,7 +123,7 @@ object AgoraManager : IRtcEngineEventHandler() {
         ): Boolean {
             val data = ByteArray(buffer.remaining())
             buffer.get(data)
-            Log.d(tag, "Remote audio frame received for uid: $uid, size: ${data.size}")
+            Log.d(tag, "Remote audio frame received (before mixing) for uid: $uid, size: ${data.size}")
             audioListener?.onRemoteAudioFrame(data, uid) // Updated to audioListener
             return true
         }
@@ -341,29 +342,5 @@ object AgoraManager : IRtcEngineEventHandler() {
         Log.d(tag, "Agora RTC Engine destroyed. isEngineInitialized = false")
     }
 }
-
-object DefaultRtcEngineEventHandler : IRtcEngineEventHandler() {
-    private val tag = "AgoraEventHandler"
-    var audioListener: AudioFrameListener? = null // Updated to audioListener
-
-    override fun onJoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) {
-        Log.d(tag, "Successfully joined channel: $channel with uid: $uid")
-    }
-
-    override fun onLeaveChannel(stats: RtcStats?) {
-        Log.d(tag, "Successfully left channel. Stats: $stats")
-    }
-
-    override fun onUserJoined(uid: Int, elapsed: Int) {
-        Log.d(tag, "User joined: $uid")
-        audioListener?.onRemoteUserJoinedChannel(uid) // Updated to audioListener
-    }
-
-    override fun onUserOffline(uid: Int, reason: Int) {
-        Log.d(tag, "User offline: $uid, Reason: $reason")
-    }
-
-    override fun onError(err: Int) {
-        Log.e(tag, "Agora RTC error: $err, message: ${RtcEngine.getErrorDescription(err)}")
-    }
-}
+// DefaultRtcEngineEventHandler object removed as it was unused.
+// AgoraManager itself implements IRtcEngineEventHandler.

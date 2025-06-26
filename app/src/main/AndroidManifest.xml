@@ -48,6 +48,7 @@
         <!-- Foreground Service for Call Recording -->
         <service
             android:name=".CallRecordingService"
+            android:exported="false"
             android:foregroundServiceType="microphone" />
 
     </application>

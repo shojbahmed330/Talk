@@ -42,10 +42,7 @@ import java.util.concurrent.TimeUnit
 // These color vals seem to be defined globally or in another theme file,
 // if not, they should be defined here or imported.
 // For now, assuming they are accessible or will be defined.
-// val mainRed = Color(0xFFD32F2F) // Example Red - Assuming this is defined elsewhere or in Theme.kt
-// val lightRed = Color(0xFFFFCDD2) // Example Light Red - Assuming this is defined elsewhere or in Theme.kt
-// val mainWhite = Color.White - This is standard.
-// val darkerRed = Color(0xFFB71C1C) - Assuming this is defined elsewhere or in Theme.kt
+// Commented out example colors (mainRed, lightRed, etc.) removed as specific Login colors are defined below.
 
 // Define colors based on user's new specification
 val LoginPrimaryRed = Color(0xFF8B0000) // Dark Red / Maroon
