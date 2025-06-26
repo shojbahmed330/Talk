@@ -133,18 +133,22 @@ fun ContactsScreen(
                 OutlinedTextField(
                     value = searchText,
                     onValueChange = { searchText = it },
-                    placeholder = { Text("Search contacts", color = accentRed) },
+                    placeholder = { Text("Search contacts", color = Color.Gray) }, // Placeholder text color
                     modifier = Modifier
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .fillMaxWidth(),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = accentRed,
-                        unfocusedBorderColor = mainRed,
-                        cursorColor = accentRed,
-                        focusedTextColor = mainRed,
-                        unfocusedTextColor = mainRed
-                        // backgroundColor = mainWhite, // Removed as M3 OutlinedTextFieldDefaults.colors doesn't have direct backgroundColor
+                        focusedTextColor = Color.Black, // Text color when focused
+                        unfocusedTextColor = Color.DarkGray, // Text color when unfocused
+                        cursorColor = mainRed, // Cursor color
+                        focusedBorderColor = mainRed, // Border color when focused
+                        unfocusedBorderColor = Color.LightGray, // Border color when unfocused
+                        focusedContainerColor = mainWhite, // Background when focused
+                        unfocusedContainerColor = mainWhite, // Background when unfocused
+                        disabledContainerColor = Color(0xFFF0F0F0), // Background when disabled
+                        focusedPlaceholderColor = Color.Gray,
+                        unfocusedPlaceholderColor = Color.Gray
                     )
                 )
             }

@@ -2,8 +2,10 @@ package com.example.realtimecalltranslation.ui.theme
 
 import android.content.Context
 import android.provider.CallLog as AndroidCallLog
+import android.provider.ContactsContract
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.core.content.ContextCompat
 import android.util.Log
 import android.text.format.DateUtils // Already present, ensure it's used
@@ -25,6 +27,34 @@ data class CallLog(
 )
 
 // Commented out User data class definition removed as it's defined in User.kt
+
+private fun getContactNameByPhoneNumber(context: Context, phoneNumber: String): String? {
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+        Log.w("CallModels", "READ_CONTACTS permission not granted. Cannot fetch contact name.")
+        return null
+    }
+    if (phoneNumber.isBlank()) {
+        return null
+    }
+
+    val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
+    val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
+    var contactName: String? = null
+
+    try {
+        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                if (nameIndex != -1) {
+                    contactName = cursor.getString(nameIndex)
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("CallModels", "Error querying contact name for $phoneNumber: ${e.message}")
+    }
+    return contactName
+}
 
 fun getRealCallLogs(context: Context): List<CallLog> {
     val logs = mutableListOf<CallLog>()
@@ -59,19 +89,30 @@ fun getRealCallLogs(context: Context): List<CallLog> {
 
         while (it.moveToNext()) {
             val number = it.getString(numberIdx) ?: "Unknown Number"
-            var name = it.getString(nameIdx)
-            if (name.isNullOrBlank()) {
-                name = number
+            var displayName: String? = it.getString(nameIdx) // Cached name from call log
+
+            // Try to get a more accurate name from contacts if cached name is blank, null, or just the number itself
+            if (displayName.isNullOrBlank() || displayName == number) {
+                val contactName = getContactNameByPhoneNumber(context, number)
+                if (!contactName.isNullOrBlank()) {
+                    displayName = contactName
+                }
             }
+
+            // Fallback to number if no name could be found
+            if (displayName.isNullOrBlank()) {
+                displayName = number
+            }
+
 
             val callLogType = when (it.getInt(typeIdx)) {
                 AndroidCallLog.Calls.INCOMING_TYPE -> CallType.INCOMING
                 AndroidCallLog.Calls.OUTGOING_TYPE -> CallType.OUTGOING
                 AndroidCallLog.Calls.MISSED_TYPE -> CallType.MISSED
-                AndroidCallLog.Calls.VOICEMAIL_TYPE -> CallType.MISSED
-                AndroidCallLog.Calls.REJECTED_TYPE -> CallType.MISSED
-                AndroidCallLog.Calls.BLOCKED_TYPE -> CallType.MISSED
-                else -> CallType.MISSED
+                AndroidCallLog.Calls.VOICEMAIL_TYPE -> CallType.MISSED // Consider how to handle voicemail
+                AndroidCallLog.Calls.REJECTED_TYPE -> CallType.MISSED // Consider how to handle rejected
+                AndroidCallLog.Calls.BLOCKED_TYPE -> CallType.MISSED  // Consider how to handle blocked
+                else -> CallType.MISSED // Default for unknown types
             }
 
             val dateTimestamp = it.getLong(dateIdx)
@@ -80,7 +121,7 @@ fun getRealCallLogs(context: Context): List<CallLog> {
             val formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", dateTimestamp).toString()
 
             // In this restored version, profilePicUrl is always null.
-            val user = User(id = number, name = name ?: number, phone = number, profilePicUrl = null)
+            val user = User(id = number, name = displayName ?: number, phone = number, profilePicUrl = null) // Use displayName
 
             val simpleMessage = when (callLogType) {
                 CallType.INCOMING -> "Incoming Call"
