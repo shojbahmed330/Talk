@@ -204,7 +204,7 @@ fun FavouritesScreen(
                     .padding(bottom = 80.dp), contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (isReal) "No favourites added yet." else "Demo: No favourites yet.",
+                    "No favourites added yet.", // Simplified text
                     color = accentRed,
                     fontSize = 18.sp
                 )
@@ -271,9 +271,9 @@ fun FavouritesScreen(
         if (showAddDialog) {
             AddFavouriteDialog(
                 contactList = contactList,
-                favouritesList = favouritesList,
+                favouritesList = favouritesList, // This is fine for checking if already added
                 onAdd = { contact ->
-                    favourites.add(contact)
+                    favouritesRepository.add(contact) // Corrected: use favouritesRepository
                     showAddDialog = false
                 },
                 onDismiss = { showAddDialog = false },
