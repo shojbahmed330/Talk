@@ -2,7 +2,7 @@ package com.example.realtimecalltranslation.ui.theme
 
 import android.Manifest
 import android.content.Context
-import android.net.Uri // Added import
+// import android.net.Uri // Unused import
 import android.provider.ContactsContract
 import android.util.Log // Added import
 import androidx.compose.foundation.background

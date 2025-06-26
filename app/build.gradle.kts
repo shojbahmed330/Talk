@@ -39,46 +39,46 @@ android {
 
 dependencies {
     // Jetpack Compose and AndroidX
-    implementation("androidx.compose.ui:ui:1.8.3")
-    implementation("androidx.compose.material3:material3:1.3.2")
-    implementation("androidx.activity:activity-compose:1.10.1")
-    implementation("androidx.navigation:navigation-compose:2.9.0")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.8.3")
-    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.activity.compose) // Was ("androidx.activity:activity-compose:1.10.1") but this version is in toml
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
 
     // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.15.0"))
-    implementation("com.google.firebase:firebase-analytics-ktx")
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-database-ktx")
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics.ktx)
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.database.ktx)
 
     // Networking and coroutines
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation(libs.retrofit.core)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.kotlinx.coroutines.android)
 
     // Other SDKs
-    implementation("io.coil-kt:coil-compose:2.6.0")
-    implementation("io.agora.rtc:full-sdk:4.5.2")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(libs.coil.compose)
+    implementation(libs.agora.rtc.full)
+    implementation(libs.squareup.okhttp)
 
     // WebRTC
     implementation(files("libs/libwebrtc-123.0.0.aar"))
 
     // Accompanist
-    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+    implementation(libs.accompanist.permissions)
 
     // Google Cloud Services
-    implementation(platform("com.google.cloud:libraries-bom:26.32.0"))
-    implementation("com.google.cloud:google-cloud-speech")
-    implementation("com.google.cloud:google-cloud-translate")
-    implementation("com.google.cloud:google-cloud-texttospeech")
-    implementation("io.grpc:grpc-okhttp:1.59.1")
+    implementation(platform(libs.google.cloud.libraries.bom))
+    implementation(libs.google.cloud.speech)
+    implementation(libs.google.cloud.translate)
+    implementation(libs.google.cloud.texttospeech)
+    implementation(libs.grpc.okhttp)
 
     // Tests
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    testImplementation(libs.junit) // Was ("junit:junit:4.13.2") but this version is in toml
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
 }

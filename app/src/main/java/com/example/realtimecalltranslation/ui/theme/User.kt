@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
-import coil.compose.AsyncImage
+// import coil.compose.AsyncImage // Unused import
 import com.example.realtimecalltranslation.R
 
 data class User(

@@ -6,7 +6,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import android.util.Log
-import android.text.format.DateUtils
+import android.text.format.DateUtils // Already present, ensure it's used
 
 enum class CallType {
     INCOMING,
@@ -24,13 +24,7 @@ data class CallLog(
     val duration: Long?
 )
 
-// User data class should be defined in User.kt, e.g.:
-// data class User(
-//     val id: String,
-//     val name: String,
-//     val phone: String,
-//     val profilePicUrl: String? = null // Will always be null in this version
-// )
+// Commented out User data class definition removed as it's defined in User.kt
 
 fun getRealCallLogs(context: Context): List<CallLog> {
     val logs = mutableListOf<CallLog>()
