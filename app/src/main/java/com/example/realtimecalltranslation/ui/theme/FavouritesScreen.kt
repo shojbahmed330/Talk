@@ -111,12 +111,6 @@ fun loadRealContacts(context: Context): List<FavouriteContact> {
     return list
 }
 
-private val demoContacts = listOf(
-    FavouriteContact("1", "Demo Baba", "01711XXXXXX"),
-    FavouriteContact("2", "Demo Ma", "01811XXXXXX"),
-    FavouriteContact("3", "Demo Friend", "01911XXXXXX")
-)
-
 @Composable
 fun FavouritesScreen(
     onBack: () -> Unit = {},
@@ -140,7 +134,7 @@ fun FavouritesScreen(
         ) {
             loadRealContacts(context)
         } else {
-            demoContacts // Fallback to demo contacts if permission not granted
+            emptyList() // Fallback to empty list if permission not granted
         }
     }
 
