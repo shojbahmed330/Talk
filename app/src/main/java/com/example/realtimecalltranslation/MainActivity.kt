@@ -7,6 +7,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import android.net.Uri // Added import for Uri
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import android.database.ContentObserver
@@ -140,7 +141,7 @@ class MainActivity : ComponentActivity() {
                                 Log.d("MainActivity", "Incoming call detected: From ${callRequest.callerId} (Name: ${callRequest.callerName}) for channel ${callRequest.channelName}, CallID: ${callRequest.callId}")
                                 coroutineScope.launch(Dispatchers.Main) {
                                     ringtonePlayer.startRingtone()
-                                    val callerUser = usersToDisplay.find { it.id == callRequest.callerId || it.phone == callRequest.callerId }
+                                    val callerUser = usersToDisplay.value.find { it.id == callRequest.callerId || it.phone == callRequest.callerId }
                                     val callerProfilePicUrl = callerUser?.profilePicUrl?.let { Uri.encode(it) } // Encode URL
                                     // Pass localIsUsa=false for incoming calls to this user (assumed non-USA based on current setup)
                                     var route = "incoming_call_screen/${callRequest.callerId}/${callRequest.callerName ?: callRequest.callerId}/${callRequest.channelName}/${callRequest.callId}/false"
@@ -367,7 +368,7 @@ class MainActivity : ComponentActivity() {
                         val localIsUsaFromNav = backStackEntry.arguments?.getBoolean("localIsUsa") ?: false
                         val callerProfilePicUrlFromNav = backStackEntry.arguments?.getString("callerProfilePicUrl")?.let { Uri.decode(it) }
 
-                        val calleeUser = usersToDisplay.find { it.id == callerId || it.phone == callerId } ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
+                        val calleeUser = usersToDisplay.value.find { it.id == callerId || it.phone == callerId } ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
                         // Set userToLog for context if needed elsewhere, though IncomingCallScreen primarily uses its args
                         userToLog = calleeUser
 
