@@ -1,5 +1,6 @@
 package com.example.realtimecalltranslation.ui.theme
 
+import android.net.Uri // Added import for Uri
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
@@ -11,6 +12,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import coil.compose.AsyncImage
 import com.example.realtimecalltranslation.R
+import androidx.compose.material3.MaterialTheme // Added import for MaterialTheme
 
 data class User(
     val id: String,
