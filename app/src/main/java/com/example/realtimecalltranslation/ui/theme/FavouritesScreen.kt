@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call // Added import for Call icon
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -31,17 +32,51 @@ data class FavouriteContact(
     val phone: String
 )
 
-object FavouritesRepository {
+class FavouritesRepository(private val context: Context) {
+    private val sharedPreferences = context.getSharedPreferences("favourites_prefs", Context.MODE_PRIVATE)
+    private val gson = com.google.gson.Gson()
+    private val favouritesKey = "favourite_contacts_list"
+
     private var _favourites = mutableStateListOf<FavouriteContact>()
     val favourites: List<FavouriteContact> get() = _favourites
 
+    init {
+        loadFavourites()
+    }
+
+    private fun loadFavourites() {
+        val json = sharedPreferences.getString(favouritesKey, null)
+        if (json != null) {
+            val type = object : com.google.gson.reflect.TypeToken<List<FavouriteContact>>() {}.type
+            val loadedFavourites: List<FavouriteContact> = gson.fromJson(json, type)
+            _favourites.addAll(loadedFavourites)
+        }
+    }
+
+    private fun saveFavourites() {
+        val json = gson.toJson(_favourites)
+        sharedPreferences.edit().putString(favouritesKey, json).apply()
+    }
+
     fun add(contact: FavouriteContact) {
-        if (_favourites.none { it.id == contact.id }) _favourites.add(contact)
+        if (_favourites.none { it.id == contact.id }) {
+            _favourites.add(contact)
+            saveFavourites()
+        }
     }
+
     fun remove(contact: FavouriteContact) {
-        _favourites.removeAll { it.id == contact.id }
+        if (_favourites.removeAll { it.id == contact.id }) {
+            saveFavourites()
+        }
     }
-    fun clear() = _favourites.clear()
+
+    fun clear() {
+        if (_favourites.isNotEmpty()) {
+            _favourites.clear()
+            saveFavourites()
+        }
+    }
 }
 
 fun loadRealContacts(context: Context): List<FavouriteContact> {
@@ -85,6 +120,8 @@ private val demoContacts = listOf(
 @Composable
 fun FavouritesScreen(
     onBack: () -> Unit = {},
+    favouritesRepository: FavouritesRepository, // Added parameter
+    onCall: (String) -> Unit, // Added callback for calling
     mainRed: Color,
     mainWhite: Color,
     accentRed: Color,
@@ -93,29 +130,23 @@ fun FavouritesScreen(
     val context = LocalContext.current
     var showAddDialog by remember { mutableStateOf(false) }
     var contactList by remember { mutableStateOf<List<FavouriteContact>>(emptyList()) }
-    var isReal by remember { mutableStateOf(false) }
+    // Removed isReal state as FavouritesRepository now handles persistence
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(Unit) { // Load contacts for the "Add Favourite" dialog
         contactList = if (ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.READ_CONTACTS
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            isReal = true
             loadRealContacts(context)
         } else {
-            isReal = false
-            demoContacts
+            demoContacts // Fallback to demo contacts if permission not granted
         }
     }
 
-    LaunchedEffect(isReal) {
-        contactList = if (isReal) loadRealContacts(context) else demoContacts
-        if (isReal) FavouritesRepository.clear()
-    }
-
-    val favourites = remember { FavouritesRepository }
-    val favouritesList by remember { derivedStateOf { favourites.favourites } }
+    // The FavouritesRepository instance is now passed, so no need to remember it here.
+    // The list of favourites is directly observed from the repository.
+    val favouritesList by remember { derivedStateOf { favouritesRepository.favourites } }
 
     Column(
         Modifier
@@ -173,7 +204,7 @@ fun FavouritesScreen(
                     .padding(bottom = 80.dp), contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (isReal) "No favourites added yet." else "Demo: No favourites yet.",
+                    "No favourites added yet.", // Simplified text
                     color = accentRed,
                     fontSize = 18.sp
                 )
@@ -215,10 +246,20 @@ fun FavouritesScreen(
                                 color = mainRed
                             )
                         }
-                        IconButton(onClick = { favourites.remove(contact) }) {
+                        // Call Button
+                        IconButton(onClick = { onCall(contact.phone) }) { // Use onCall callback
+                            Icon(
+                                imageVector = Icons.Filled.Call, // Assuming Icons.Filled.Call is available
+                                contentDescription = "Call ${contact.name}",
+                                tint = mainRed // Or another appropriate color
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp)) // Add some space between buttons
+                        // Delete Button
+                        IconButton(onClick = { favouritesRepository.remove(contact) }) { // Use favouritesRepository
                             Icon(
                                 Icons.Filled.Delete,
-                                contentDescription = "Remove",
+                                contentDescription = "Remove ${contact.name}",
                                 tint = accentRed
                             )
                         }
@@ -230,9 +271,9 @@ fun FavouritesScreen(
         if (showAddDialog) {
             AddFavouriteDialog(
                 contactList = contactList,
-                favouritesList = favouritesList,
+                favouritesList = favouritesList, // This is fine for checking if already added
                 onAdd = { contact ->
-                    favourites.add(contact)
+                    favouritesRepository.add(contact) // Corrected: use favouritesRepository
                     showAddDialog = false
                 },
                 onDismiss = { showAddDialog = false },

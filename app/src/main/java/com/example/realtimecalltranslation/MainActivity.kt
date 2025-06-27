@@ -44,6 +44,7 @@ import com.example.realtimecalltranslation.firebase.FirebaseProvider // Added Fi
 import com.example.realtimecalltranslation.ui.theme.User // Import User from ui.theme
 import com.example.realtimecalltranslation.ui.theme.CallLog // Import CallLog
 import com.example.realtimecalltranslation.ui.theme.CallType // Import CallType
+import com.example.realtimecalltranslation.ui.theme.FavouritesRepository
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Import getRealCallLogs
 // import com.example.realtimecalltranslation.util.ChannelUtils // Unused import
 import com.example.realtimecalltranslation.util.RingtonePlayer // Re-adding as it's used for variable type
@@ -220,6 +221,10 @@ class MainActivity : ComponentActivity() {
 
                 val callScreenViewModel: CallScreenViewModel = ViewModelProvider(this, callScreenViewModelFactory)[CallScreenViewModel::class.java]
 
+                // Instantiate FavouritesRepository
+                val favouritesRepository = remember { FavouritesRepository(applicationContext) }
+
+
                 // Set the audio frame listener on AgoraManager
                 LaunchedEffect(callScreenViewModel) { // AgoraManager is now an object, no need to pass as key if it doesn't change
                     AgoraManager.setAudioFrameListener(callScreenViewModel)
@@ -388,7 +393,7 @@ class MainActivity : ComponentActivity() {
                         val calleeUser = usersToDisplay.find { it.id == callerId || it.phone == callerId } ?: User(callerId, callerName, callerId, null)
 
 
-                      IncomingCallScreen(
+                        IncomingCallScreen(
                             callerId = callerId,
                             callerName = callerName,
                             channelName = channelName,
@@ -514,6 +519,53 @@ class MainActivity : ComponentActivity() {
                     composable("favourites") {
                         FavouritesScreen(
                             onBack = { navController.popBackStack() },
+                            favouritesRepository = favouritesRepository,
+                            onCall = { calleePhoneNumber ->
+                                // Logic to initiate a call, similar to other call initiation points
+                                Log.d("CallDebug", "Initiating call from FavouritesScreen to phone: $calleePhoneNumber")
+                                if (!isAgoraEngineInitialized) {
+                                    Toast.makeText(applicationContext, "Call service not ready.", Toast.LENGTH_SHORT).show()
+                                    return@FavouritesScreen
+                                }
+                                if (currentUserId.isBlank()) {
+                                    Toast.makeText(applicationContext, "Cannot make call: Current user not identified.", Toast.LENGTH_LONG).show()
+                                    return@FavouritesScreen
+                                }
+
+                                val calleeUser = usersToDisplay.find { it.phone == calleePhoneNumber }
+                                    ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
+                                userToLog = calleeUser
+
+                                coroutineScope.launch {
+                                    var statusListener: ValueEventListener? = null
+                                    statusListener = userStatusManager.observeUserOnlineStatus(calleePhoneNumber) { isOnline: Boolean, lastSeen: Long? ->
+                                        statusListener?.let { userStatusManager.stopObservingUserStatus(calleePhoneNumber, it) }
+                                        statusListener = null
+                                        if (isOnline) {
+                                            val channelToJoin = calleePhoneNumber
+                                            val callId = FirebaseProvider.getCallRequestsRef(calleePhoneNumber).push().key ?: UUID.randomUUID().toString()
+                                            val callRequest = CallRequest(
+                                                callId = callId,
+                                                callerId = currentUserId,
+                                                callerName = currentUserName,
+                                                calleeId = calleePhoneNumber,
+                                                channelName = channelToJoin,
+                                                status = Constants.CALL_STATUS_PENDING
+                                            )
+                                            callSignalingManager.sendCallRequest(callRequest,
+                                                onSuccess = {
+                                                    navController.navigate("call/${calleePhoneNumber}?callId=${callRequest.callId}&remoteUserId=${callRequest.calleeId}&localIsUsa=false")
+                                                },
+                                                onFailure = { errorMsg ->
+                                                    Toast.makeText(applicationContext, "Failed to send call request: $errorMsg", Toast.LENGTH_LONG).show()
+                                                }
+                                            )
+                                        } else {
+                                            Toast.makeText(applicationContext, "${calleeUser.name} is currently offline.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            },
                             mainRed = mainRed,
                             mainWhite = mainWhite,
                             accentRed = accentRed,
