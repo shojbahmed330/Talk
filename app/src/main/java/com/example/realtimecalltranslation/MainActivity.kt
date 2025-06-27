@@ -44,7 +44,7 @@ import com.example.realtimecalltranslation.firebase.CallRequest
 import com.example.realtimecalltranslation.firebase.FirebaseProvider // Added FirebaseProvider import
 import com.example.realtimecalltranslation.ui.theme.User // Import User from ui.theme
 import com.example.realtimecalltranslation.ui.theme.CallLog // Import CallLog
-import com.example.realtimecalltranslation.ui.theme.CallType // Import CallType
+// import com.example.realtimecalltranslation.ui.theme.CallType // Import CallType - Removed as unused in MainActivity
 import com.example.realtimecalltranslation.ui.theme.FavouritesRepository
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Import getRealCallLogs
 // import com.example.realtimecalltranslation.util.ChannelUtils // Unused import
@@ -141,8 +141,8 @@ class MainActivity : ComponentActivity() {
                                 Log.d("MainActivity", "Incoming call detected: From ${callRequest.callerId} (Name: ${callRequest.callerName}) for channel ${callRequest.channelName}, CallID: ${callRequest.callId}")
                                 coroutineScope.launch(Dispatchers.Main) {
                                     ringtonePlayer.startRingtone()
-                                    val callerUser = usersToDisplay.value.find { it.id == callRequest.callerId || it.phone == callRequest.callerId }
-                                    val callerProfilePicUrl = callerUser?.profilePicUrl?.let { Uri.encode(it) } // Encode URL
+                                    val callerUser: User? = usersToDisplay.value.find { user -> user.id == callRequest.callerId || user.phone == callRequest.callerId }
+                                    val callerProfilePicUrl = callerUser?.profilePicUrl?.let { picUrl -> Uri.encode(picUrl) } // Encode URL
                                     // Pass localIsUsa=false for incoming calls to this user (assumed non-USA based on current setup)
                                     var route = "incoming_call_screen/${callRequest.callerId}/${callRequest.callerName ?: callRequest.callerId}/${callRequest.channelName}/${callRequest.callId}/false"
                                     if (callerProfilePicUrl != null) {
@@ -366,9 +366,10 @@ class MainActivity : ComponentActivity() {
                         val channelName = backStackEntry.arguments?.getString("channelName") ?: ""
                         val callId = backStackEntry.arguments?.getString("callId") ?: ""
                         val localIsUsaFromNav = backStackEntry.arguments?.getBoolean("localIsUsa") ?: false
-                        val callerProfilePicUrlFromNav = backStackEntry.arguments?.getString("callerProfilePicUrl")?.let { Uri.decode(it) }
+                        val callerProfilePicUrlFromNav = backStackEntry.arguments?.getString("callerProfilePicUrl")?.let { url -> Uri.decode(url) }
 
-                        val calleeUser = usersToDisplay.value.find { it.id == callerId || it.phone == callerId } ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
+                        val foundCalleeUser: User? = usersToDisplay.value.find { user -> user.id == callerId || user.phone == callerId }
+                        val calleeUser = foundCalleeUser ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
                         // Set userToLog for context if needed elsewhere, though IncomingCallScreen primarily uses its args
                         userToLog = calleeUser
 
