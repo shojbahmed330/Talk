@@ -55,11 +55,13 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import com.google.firebase.auth.FirebaseAuth
 
-// Import for the helper function (assuming it's in the same package based on creation)
-import com.example.realtimecalltranslation.findUserInList
-
 // Removed unused RAPID_API_KEY_PLACEHOLDER constant
 // const val RAPID_API_KEY_PLACEHOLDER = "YOUR_RAPID_API_KEY"
+
+// Helper function moved directly into MainActivity.kt to avoid resolution issues
+private fun findUserInList(users: List<User>, idToMatch: String, phoneToMatch: String): User? {
+    return users.find { user -> user.id == idToMatch || user.phone == phoneToMatch }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -142,7 +144,7 @@ class MainActivity : ComponentActivity() {
                                 Log.d("MainActivity", "Incoming call detected: From ${callRequest.callerId} (Name: ${callRequest.callerName}) for channel ${callRequest.channelName}, CallID: ${callRequest.callId}")
                                 coroutineScope.launch(Dispatchers.Main) {
                                     ringtonePlayer.startRingtone()
-                                    val callerUser: User? = findUserInList(currentUsers, callRequest.callerId, callRequest.callerId) // Assuming phone and id are the same for this lookup logic
+                                    val callerUser: User? = findUserInList(usersToDisplay.value, callRequest.callerId, callRequest.callerId)
                                     val callerProfilePicUrl = callerUser?.profilePicUrl?.let { picUrl -> Uri.encode(picUrl) } // Encode URL
                                     // Pass localIsUsa=false for incoming calls to this user (assumed non-USA based on current setup)
                                     var route = "incoming_call_screen/${callRequest.callerId}/${callRequest.callerName ?: callRequest.callerId}/${callRequest.channelName}/${callRequest.callId}/false"
@@ -328,7 +330,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 // Attempt to simplify access for debugging persistent errors
-                val currentUsers: List<User> = usersToDisplay.value
+                // val currentUsers: List<User> = usersToDisplay.value // Removed this intermediate variable
 
 
                 // Assuming CallLog and CallType are now imported from ui.theme or a similar package
@@ -372,7 +374,7 @@ class MainActivity : ComponentActivity() {
                         val localIsUsaFromNav = backStackEntry.arguments?.getBoolean("localIsUsa") ?: false
                         val callerProfilePicUrlFromNav = backStackEntry.arguments?.getString("callerProfilePicUrl")?.let { url -> Uri.decode(url) }
 
-                        val foundCalleeUser: User? = findUserInList(currentUsers, callerId, callerId) // Assuming phone and id are the same for this lookup logic
+                        val foundCalleeUser: User? = findUserInList(usersToDisplay.value, callerId, callerId)
                         val calleeUser = foundCalleeUser ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
                         // Set userToLog for context if needed elsewhere, though IncomingCallScreen primarily uses its args
                         userToLog = calleeUser
