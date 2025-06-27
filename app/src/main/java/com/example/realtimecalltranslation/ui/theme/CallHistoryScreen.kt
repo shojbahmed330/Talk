@@ -181,21 +181,36 @@ fun CallHistoryScreen(
                 .fillMaxWidth(),
             color = cardBg
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 4.dp)
-            ) {
-                items(filteredLogs) { log ->
-                    CallLogRow(
-                        log = log,
-                        onProfile = onProfile,
-                        onCall = onCall,
-                        mainRed = mainRed,
-                        accentRed = accentRed,
-                        lightRed = lightRed,
-                        cardBg = mainWhite
+            if (filteredLogs.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (search.isBlank()) "No ${activeTab.name.lowercase()} calls." else "No results found for \"$search\".",
+                        fontSize = 18.sp,
+                        color = accentRed
                     )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 4.dp)
+                ) {
+                    items(filteredLogs) { log ->
+                        CallLogRow(
+                            log = log,
+                            onProfile = onProfile,
+                            onCall = onCall,
+                            mainRed = mainRed,
+                            accentRed = accentRed,
+                            lightRed = lightRed,
+                            cardBg = mainWhite
+                        )
+                    }
                 }
             }
         }

@@ -245,39 +245,6 @@ class MainActivity : ComponentActivity() {
 
                 // Duplicate permission handling block removed. The correct one is earlier in the code.
 
-                val demoUsers = listOf(
-                    User("demouser1", "Demo User One", "01234567890", null),
-                    User("demouser2", "Demo User Two", "01234567891", null),
-                    User("demouser3", "Demo User Three", "01234567892", null)
-                )
-
-                val demoCallLogsState = remember {
-                    mutableStateListOf<CallLog>().apply {
-                        val now = System.currentTimeMillis()
-                        val callTypes = listOf(CallType.INCOMING, CallType.OUTGOING, CallType.MISSED)
-                        val durations = listOf(120L, 30L, 0L, 240L, 90L)
-                        addAll(demoUsers.mapIndexed { index, user ->
-                            val callType = callTypes[index % callTypes.size]
-                            val isMissed = callType == CallType.MISSED
-                            val duration = if (isMissed) 0L else durations[index % durations.size]
-                            val callTimestamp = now - (index * 5 * 60 * 1000L) - (index * 15 * 1000L)
-                            CallLog(
-                                user = user,
-                                message = when (callType) {
-                                    CallType.INCOMING -> "Incoming Call"
-                                    CallType.OUTGOING -> "Outgoing Call"
-                                    CallType.MISSED -> "Missed Call"
-                                },
-                                callType = callType,
-                                isMissed = isMissed,
-                                formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", callTimestamp).toString(),
-                                timestamp = callTimestamp,
-                                duration = duration
-                            )
-                        })
-                    }
-                }
-
                 // triggerRefresh function and callLogRefreshTrigger state are kept for ContentObserver
                 var callLogRefreshTrigger by remember { mutableIntStateOf(0) }
                 fun triggerRefresh() {
@@ -333,22 +300,23 @@ class MainActivity : ComponentActivity() {
                         callLogsFromSource = logs
                         Log.d("MainActivity", "Call logs fetched. Count: ${logs.size}")
                     } else {
-                        callLogsFromSource = demoCallLogsState // Fallback to demo logs if permissions are not sufficient
-                        Log.d("MainActivity", "Not enough permissions or permission denied, using demo logs. PermissionsGranted: $permissionsGranted, HasReadCallLog: $hasReadCallLogPerm")
+                        callLogsFromSource = emptyList() // Fallback to empty list if permissions are not sufficient
+                        Log.d("MainActivity", "Not enough permissions or permission denied, using empty logs. PermissionsGranted: $permissionsGranted, HasReadCallLog: $hasReadCallLogPerm")
                     }
                 }
 
                 var userToLog by remember { mutableStateOf<User?>(null) }
                 var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
 
-                val callLogsToDisplay by remember(callLogsFromSource, demoCallLogsState) {
+                val callLogsToDisplay by remember(callLogsFromSource) {
                     derivedStateOf {
-                        if (callLogsFromSource.isNotEmpty()) callLogsFromSource else demoCallLogsState
+                        callLogsFromSource
                     }
                 }
-                val usersToDisplay by remember(callLogsFromSource, demoUsers) {
+                val usersToDisplay by remember(callLogsFromSource) {
                     derivedStateOf {
-                        if (callLogsFromSource.isNotEmpty()) callLogsFromSource.map { it.user }.distinctBy { it.id } else demoUsers
+                        // If callLogsFromSource is empty, this will correctly produce an empty list of users.
+                        callLogsFromSource.map { it.user }.distinctBy { it.id }
                     }
                 }
 
