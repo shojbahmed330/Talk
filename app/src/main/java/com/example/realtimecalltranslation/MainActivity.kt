@@ -48,7 +48,7 @@ import com.example.realtimecalltranslation.ui.theme.CallLog // Import CallLog
 import com.example.realtimecalltranslation.ui.theme.FavouritesRepository
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Import getRealCallLogs
 // import com.example.realtimecalltranslation.util.ChannelUtils // Unused import
-import com.example.realtimecalltranslation.util.ImageStorageHelper // Import ImageStorageHelper
+// import com.example.realtimecalltranslation.util.ImageStorageHelper // Import ImageStorageHelper - Removed as it's no longer used in MainActivity
 import com.example.realtimecalltranslation.util.RingtonePlayer // Re-adding as it's used for variable type
 import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.launch
@@ -68,26 +68,26 @@ class MainActivity : ComponentActivity() {
     // State variables that might need to be updated by the callback
     private var userToLog by mutableStateOf<User?>(null)
     private var callLogsFromSource by mutableStateOf<List<CallLog>>(emptyList())
-    // profileScreenImageDisplayData might also need update, but ProfileScreen will handle its display primarily.
-    // Let's focus on userToLog and callLogsFromSource for data integrity across screens.
+    // profileScreenImageDisplayData will be removed later as it's unused.
 
-    private fun onUserProfileUpdated(userId: String, newProfilePicUrl: String?) {
+    private fun handleProfileUpdate(updatedUser: User) {
         // Update userToLog if it's the user whose profile was changed
-        if (userToLog?.id == userId || userToLog?.phone == userId) { // Checking against phone as well, as ID might be phone
-            userToLog = userToLog?.copy(profilePicUrl = newProfilePicUrl)
+        // Check against both id and phone for robustness, as user.id might be the phone number.
+        if (userToLog?.id == updatedUser.id || userToLog?.phone == updatedUser.phone) {
+            userToLog = updatedUser
         }
 
         // Update callLogsFromSource
         callLogsFromSource = callLogsFromSource.map { log ->
-            // Assuming user.id or user.phone can be the identifier passed as userId
-            if (log.user.id == userId || log.user.phone == userId) {
-                log.copy(user = log.user.copy(profilePicUrl = newProfilePicUrl))
+            // Check against both id and phone for robustness
+            if (log.user.id == updatedUser.id || log.user.phone == updatedUser.phone) {
+                log.copy(user = updatedUser)
             } else {
                 log
             }
         }
         // usersToDisplayState will automatically recompose as it's derived from callLogsFromSource
-        Log.d("MainActivity", "User profile updated in MainActivity for $userId. New Pic URL: $newProfilePicUrl")
+        Log.d("MainActivity", "User profile updated in MainActivity for ${updatedUser.id} (Phone: ${updatedUser.phone}). New Pic URL: ${updatedUser.profilePicUrl}, New Name: ${updatedUser.name}")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -351,7 +351,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var userToLog by remember { mutableStateOf<User?>(null) }
-                var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
+                // var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) } // Removed as it's unused
 
                 val callLogsToDisplay by remember(callLogsFromSource) {
                     derivedStateOf {
@@ -670,27 +670,13 @@ class MainActivity : ComponentActivity() {
                             ProfileScreen( // No need for full package name if imported correctly
                                 user = userForProfile,
                                 callLogs = callLogsToDisplay.filter { it.user.id == userForProfile.id }, // Use userForProfile.id
-                                // imageDataSource = currentImageDataSource, // Removed: ProfileScreen will use user.profilePicUrl and load via Coil/Firebase
-                                onNameUpdate = { newName: String -> // Explicitly typed
-                                    // This logic might also move to ProfileScreen if it updates name directly in Firebase
-                                    // For now, keeping it here to update local states.
-                                    // Consider a more generic onUserUpdated callback if name update also happens in ProfileScreen.
-                                    callLogsFromSource = callLogsFromSource.map { log ->
-                                        if (log.user.id == navigatedUserId) log.copy(user = log.user.copy(name = newName)) else log
-                                    }
-                                    if (userToLog?.id == navigatedUserId) userToLog = userToLog?.copy(name = newName)
-
-                                    // If ProfileScreen updates name in Firebase, it might also call onUserProfileUpdated
-                                    // with the new name, if the callback is designed to handle more than just pic updates.
-                                    // For now, onUserProfileUpdated is specific to pic URL.
-                                },
-                                // onProfilePicUriSelected is removed as ProfileScreen now handles selection and Firebase upload.
-                                // Instead, ProfileScreen will call onUserProfileUpdated after a successful Firebase update.
-                                onUserProfileUpdated = { userId, newPicUrl ->
-                                    onUserProfileUpdated(userId, newPicUrl) // Call the MainActivity's handler
+                                // onNameUpdate is removed as ProfileScreen now handles name updates and informs via onProfileUpdated
+                                // onUserProfileUpdated (old) is removed
+                                onProfileUpdated = { updatedUserFromProfile: User -> // Explicitly typed lambda parameter
+                                    handleProfileUpdate(updatedUserFromProfile) // Call the MainActivity's new handler
                                 },
                                 onBack = {
-                                    // profileScreenImageDisplayData = null // No longer strictly needed to nullify here as ProfileScreen will take from user.profilePicUrl
+                                    // profileScreenImageDisplayData = null // This state variable will be removed entirely
                                     navController.popBackStack()
                                 },
                                 onCall = { calleeUser: User ->
