@@ -21,6 +21,10 @@ android {
         compose = true
     }
 
+    composeOptions {
+        kotlinCompilerExtensionVersion = "2.0.20" // Matches Kotlin version in settings.gradle.kts
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -39,30 +43,31 @@ android {
 
 dependencies {
     // Jetpack Compose and AndroidX
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.activity.compose) // Was ("androidx.activity:activity-compose:1.10.1") but this version is in toml
-    implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.navigation.compose)
 
-    // Firebase
+    // Firebase (using BOM for version management)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics.ktx)
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.database.ktx)
+    implementation(libs.firebase.storage.ktx) // Firebase Storage dependency
 
     // Networking and coroutines
     implementation(libs.retrofit.core)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.squareup.okhttp)
 
     // Other SDKs
     implementation(libs.coil.compose)
     implementation(libs.agora.rtc.full)
-    implementation(libs.squareup.okhttp)
 
     // WebRTC
     implementation(files("libs/libwebrtc-123.0.0.aar"))
@@ -70,7 +75,7 @@ dependencies {
     // Accompanist
     implementation(libs.accompanist.permissions)
 
-    // Google Cloud Services
+    // Google Cloud Services (using BOM from libs.versions.toml)
     implementation(platform(libs.google.cloud.libraries.bom))
     implementation(libs.google.cloud.speech)
     implementation(libs.google.cloud.translate)
@@ -78,7 +83,7 @@ dependencies {
     implementation(libs.grpc.okhttp)
 
     // Tests
-    testImplementation(libs.junit) // Was ("junit:junit:4.13.2") but this version is in toml
+    testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
 }

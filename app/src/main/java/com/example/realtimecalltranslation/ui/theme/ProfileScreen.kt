@@ -1,5 +1,10 @@
 package com.example.realtimecalltranslation.ui
 
+import android.net.Uri
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,11 +24,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.net.Uri
-import android.util.Log
-import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,26 +31,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter // Added import
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
-import coil.size.Size
+import com.example.realtimecalltranslation.R // আপনার R ফাইল
+import com.example.realtimecalltranslation.firebase.FirebaseStorageService
+import com.example.realtimecalltranslation.firebase.FirebaseUserService
 import com.example.realtimecalltranslation.ui.theme.CallLog
-// CallLogRow will be replaced by custom layout
 import com.example.realtimecalltranslation.ui.theme.User
-import com.example.realtimecalltranslation.ui.theme.formatTimeAgo // Added import
-import com.example.realtimecalltranslation.ui.theme.CallType // Added import
-// Removed duplicate: import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Divider // Added import
-import androidx.compose.material3.MaterialTheme // Added import for MaterialTheme.colorScheme
+import com.example.realtimecalltranslation.ui.theme.formatTimeAgo
+import com.example.realtimecalltranslation.ui.theme.CallType
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
 
 private fun formatDuration(seconds: Long?): String {
     if (seconds == null || seconds < 0) return ""
@@ -68,28 +68,57 @@ private fun formatDuration(seconds: Long?): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    user: User,
+    user: User, // এই user অবজেক্ট MainActivity থেকে আসবে
     callLogs: List<CallLog>,
     onBack: () -> Unit,
     onCall: (User) -> Unit,
     mainRed: Color,
     mainWhite: Color,
-    onNameUpdate: (newName: String) -> Unit,
-    onProfilePicUriSelected: (uriString: String?) -> Unit,
-    imageDataSource: Any? = null // Default to null if not provided
+    // MainActivity কে জানানোর জন্য কলব্যাক, যদি প্রোফাইল আপডেট হয়
+    onProfileUpdated: (updatedUser: User) -> Unit
 ) {
-    Log.d("ProfileScreenInit", "Composing ProfileScreen for User: ${user.name}, Initial imageDataSource: $imageDataSource")
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // imageDataSource এর পরিবর্তে currentProfilePicUrl ব্যবহার করা হচ্ছে, যা user.profilePicUrl থেকে শুরু হবে
+    var currentProfilePicUrl by remember(user.profilePicUrl) { mutableStateOf(user.profilePicUrl) }
+    var editedName by rememberSaveable(user.name) { mutableStateOf(user.name) }
+    var isEditingName by rememberSaveable { mutableStateOf(false) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val currentFirebaseUser = FirebaseAuth.getInstance().currentUser
+    // user.phone ব্যবহার করে বর্তমান ইউজার কিনা চেক করা হচ্ছে, কারণ user.id ফোন নাম্বার হতে পারে
+    val isCurrentUserProfile = currentFirebaseUser?.phoneNumber == user.phone
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        Log.d("ProfileScreenPicker", "Image URI selected by picker: ${uri?.toString()}")
-        onProfilePicUriSelected(uri?.toString())
-    }
+    ) { selectedImageUri: Uri? ->
+        selectedImageUri?.let {
+            if (isCurrentUserProfile && user.phone.isNotBlank()) {
+                coroutineScope.launch {
+                    val oldPicUrl = currentProfilePicUrl // আপলোডের আগে বর্তমান URL সেভ করা
+                    // নতুন ছবি আপলোড করার আগে পুরনো ছবি (যদি থাকে) ডিলিট করার চেষ্টা
+                    if (!oldPicUrl.isNullOrEmpty()) {
+                        val deleted = FirebaseStorageService.deleteProfilePicture(oldPicUrl)
+                        if(deleted) Log.d("ProfileScreen", "Old picture deleted: $oldPicUrl")
+                        else Log.d("ProfileScreen", "Failed to delete old picture or no old picture: $oldPicUrl")
+                    }
 
-    var isEditingName by rememberSaveable { mutableStateOf(false) }
-    var editedName by rememberSaveable { mutableStateOf(user.name) }
-    val keyboardController = LocalSoftwareKeyboardController.current
+                    // Firebase user ID (phone number) ব্যবহার করে আপলোড
+                    val downloadUrl = FirebaseStorageService.uploadProfilePicture(user.phone, selectedImageUri)
+                    if (downloadUrl != null) {
+                        FirebaseUserService.updateUserProfile(user.phone, editedName, downloadUrl)
+                        currentProfilePicUrl = downloadUrl // UI তে তাৎক্ষণিক দেখানোর জন্য স্টেট আপডেট
+                        val updatedUser = user.copy(name = editedName, profilePicUrl = downloadUrl)
+                        onProfileUpdated(updatedUser) // MainActivity কে জানানো
+                        Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Failed to upload image", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -116,30 +145,15 @@ fun ProfileScreen(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    mainRed,
-                                    mainRed.copy(alpha = 0.8f),
-                                    mainWhite
-                                )
-                            )
+                            brush = Brush.linearGradient(colors = listOf(mainRed, mainRed.copy(alpha = 0.8f),mainWhite))
                         )
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = mainRed
-                    )
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = mainRed)
                 }
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = "Profile",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    color = mainWhite
-                )
+                Text(text = "Profile", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = mainWhite)
                 Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(40.dp)) // for symmetry
+                Spacer(Modifier.width(40.dp))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -151,59 +165,63 @@ fun ProfileScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(110.dp) // This is the outer clickable Box size
-                        .clickable { imagePickerLauncher.launch("image/*") }
+                        .size(110.dp)
+                        .clickable(enabled = isCurrentUserProfile) {
+                            if(isCurrentUserProfile) imagePickerLauncher.launch("image/*")
+                        }
                 ) {
-                    key(imageDataSource, user.profilePicUrl) { // Updated key
-                        // This inner Box is for the image/placeholder itself
+                    key(currentProfilePicUrl) { // user.profilePicUrl এর পরিবর্তে currentProfilePicUrl
                         Box(
                             modifier = Modifier
-                                .fillMaxSize() // Fill the 110.dp Box
+                                .fillMaxSize()
                                 .clip(CircleShape)
-                                .background(mainWhite, CircleShape) // Background for the circle
-                                .border(4.dp, mainWhite, CircleShape), // Border for the circle
+                                .background(mainWhite, CircleShape)
+                                .border(4.dp, mainWhite, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            val modelToLoad: Any? = imageDataSource ?: user.profilePicUrl
+                            // imageDataSource এর পরিবর্তে currentProfilePicUrl ব্যবহার করা হচ্ছে
+                            val modelToLoad: Any? = currentProfilePicUrl
 
-                            if (modelToLoad is ByteArray || (modelToLoad is String && modelToLoad.isNotBlank())) {
-                                // Valid model for Coil: ByteArray or non-blank String (URL/URI)
+                            if (modelToLoad is String && modelToLoad.isNotBlank()) {
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(modelToLoad)
                                         .crossfade(true)
-                                        // .size(Size(256, 256)) // Optional
                                         .build(),
                                     contentDescription = user.name ?: "User Avatar",
-                                    modifier = Modifier.fillMaxSize(), // Fill the parent Box (which is already clipped)
+                                    modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop,
                                     onError = { error ->
                                         Log.e("ProfileScreenImgLoad", "Error loading image: $modelToLoad", error.result.throwable)
-                                    }
+                                        // এখানেও প্লেসহোল্ডার দেখানো যেতে পারে এরর হলে
+                                    },
+                                    // লোড হওয়ার সময় প্লেসহোল্ডার
+                                    placeholder = painterResource(id = R.drawable.ic_avatar)
                                 )
                             } else {
-                                // Fallback to placeholder Icon if no valid image data
                                 Image(
-                                    imageVector = Icons.Filled.Person, // Default placeholder
+                                    imageVector = Icons.Filled.Person,
                                     contentDescription = user.name ?: "User Avatar Placeholder",
-                                    modifier = Modifier.size(60.dp), // Adjust size of the icon within the circle
+                                    modifier = Modifier.size(60.dp),
                                     contentScale = ContentScale.Fit,
-                                    colorFilter = ColorFilter.tint(mainRed.copy(alpha = 0.7f)) // Tint for the placeholder
+                                    colorFilter = ColorFilter.tint(mainRed.copy(alpha = 0.7f))
                                 )
                             }
                         }
                     }
-                    // Edit Icon Overlay (should be outside the key block, but inside the clickable Box)
-                    Icon(
-                        imageVector = Icons.Filled.PhotoCamera,
-                        contentDescription = "Change Picture",
-                        tint = mainWhite.copy(alpha = 0.9f),
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(30.dp)
-                            .background(mainRed.copy(alpha = 0.7f), CircleShape)
-                            .padding(4.dp)
-                    )
+                    if (isCurrentUserProfile) {
+                        Icon(
+                            imageVector = Icons.Filled.PhotoCamera,
+                            contentDescription = "Change Picture",
+                            tint = mainWhite.copy(alpha = 0.9f),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(30.dp)
+                                .background(mainRed.copy(alpha = 0.7f), CircleShape)
+                                .padding(4.dp)
+                                .clickable { imagePickerLauncher.launch("image/*") }
+                        )
+                    }
                 }
             }
 
@@ -214,7 +232,7 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (isEditingName) {
+                if (isEditingName && isCurrentUserProfile) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -227,7 +245,11 @@ fun ProfileScreen(
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
-                                onNameUpdate(editedName)
+                                if (user.phone.isNotBlank()) {
+                                    FirebaseUserService.updateUserProfile(user.phone, editedName, currentProfilePicUrl)
+                                    val updatedUser = user.copy(name = editedName, profilePicUrl = currentProfilePicUrl)
+                                    onProfileUpdated(updatedUser) // MainActivity কে জানানো
+                                }
                                 isEditingName = false
                                 keyboardController?.hide()
                             }),
@@ -242,7 +264,11 @@ fun ProfileScreen(
                             )
                         )
                         IconButton(onClick = {
-                            onNameUpdate(editedName)
+                            if (user.phone.isNotBlank()) {
+                                FirebaseUserService.updateUserProfile(user.phone, editedName, currentProfilePicUrl)
+                                val updatedUser = user.copy(name = editedName, profilePicUrl = currentProfilePicUrl)
+                                onProfileUpdated(updatedUser) // MainActivity কে জানানো
+                            }
                             isEditingName = false
                             keyboardController?.hide()
                         }) {
@@ -252,24 +278,28 @@ fun ProfileScreen(
                 } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { isEditingName = true }
+                        modifier = Modifier.clickable(enabled = isCurrentUserProfile) {
+                            if(isCurrentUserProfile) isEditingName = true
+                        }
                     ) {
                         Text(
-                            text = editedName,
+                            text = editedName, // user.name এর পরিবর্তে editedName
                             fontWeight = FontWeight.Bold,
                             fontSize = 26.sp,
                             color = mainWhite
                         )
-                        IconButton(
-                            onClick = { isEditingName = true },
-                            modifier = Modifier.size(32.dp).padding(start = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Edit,
-                                contentDescription = "Edit Name",
-                                tint = mainWhite.copy(alpha = 0.7f),
-                                modifier = Modifier.size(20.dp)
-                            )
+                        if (isCurrentUserProfile) {
+                            IconButton(
+                                onClick = { isEditingName = true },
+                                modifier = Modifier.size(32.dp).padding(start = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Edit,
+                                    contentDescription = "Edit Name",
+                                    tint = mainWhite.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -318,7 +348,7 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxSize().padding(top = 6.dp)
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(vertical = 8.dp) // Horizontal padding handled by items now
+                        modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)
                     ) {
                         val displayedLogs = if (callLogs.size > 50) callLogs.take(50) else callLogs
                         items(displayedLogs) { log ->
@@ -333,13 +363,11 @@ fun ProfileScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp, horizontal = 16.dp) // Item specific horizontal padding
+                                    .padding(vertical = 8.dp, horizontal = 16.dp)
                                     .background(mainWhite.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
                                     .padding(12.dp)
                             ) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    // UserAvatar(user = log.user, size = 40.dp)
-                                    // Spacer(Modifier.width(8.dp))
                                     Text(
                                         text = "${log.user.name} (${log.user.phone})",
                                         fontWeight = FontWeight.Bold,
@@ -350,7 +378,7 @@ fun ProfileScreen(
                                     Text(text = callTypeString, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Spacer(Modifier.height(4.dp))
-                                Text(text = log.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface) // Original message
+                                Text(text = log.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(Modifier.height(4.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(text = "Duration: $durationString", fontSize = 12.sp, color = Color.Gray)
@@ -373,3 +401,4 @@ fun ProfileScreen(
         }
     }
 }
+

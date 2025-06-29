@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.SpeakerPhone
 fun IncomingCallScreen(
     callerId: String,
     callerName: String,
+    callerProfilePicUrl: String?, // New parameter for profile picture URL
     channelName: String,
     callId: String,
     callScreenViewModel: CallScreenViewModel, // Added ViewModel
@@ -54,7 +55,8 @@ fun IncomingCallScreen(
     mainGreen: Color = Color(0xFF388E3C)
 ) {
     var isCallAccepted by remember { mutableStateOf(false) }
-    val callerUser = User(id = callerId, name = callerName, phone = callerId, profilePicUrl = null) // Create a User object for avatar etc.
+    // Use the passed callerProfilePicUrl when creating the User object
+    val callerUser = User(id = callerId, name = callerName, phone = callerId, profilePicUrl = callerProfilePicUrl)
 
     if (!isCallAccepted) {
         // UI for incoming call (ringing state)

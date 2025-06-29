@@ -7,6 +7,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import android.net.Uri // Added import for Uri
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import android.database.ContentObserver
@@ -43,20 +44,24 @@ import com.example.realtimecalltranslation.firebase.CallRequest
 import com.example.realtimecalltranslation.firebase.FirebaseProvider // Added FirebaseProvider import
 import com.example.realtimecalltranslation.ui.theme.User // Import User from ui.theme
 import com.example.realtimecalltranslation.ui.theme.CallLog // Import CallLog
-import com.example.realtimecalltranslation.ui.theme.CallType // Import CallType
+// import com.example.realtimecalltranslation.ui.theme.CallType // Import CallType - Removed as unused in MainActivity
 import com.example.realtimecalltranslation.ui.theme.FavouritesRepository
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Import getRealCallLogs
 // import com.example.realtimecalltranslation.util.ChannelUtils // Unused import
+import com.example.realtimecalltranslation.util.ImageStorageHelper // Import ImageStorageHelper
 import com.example.realtimecalltranslation.util.RingtonePlayer // Re-adding as it's used for variable type
 import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.launch
 import java.util.UUID
 import com.google.firebase.auth.FirebaseAuth
 
-
-
 // Removed unused RAPID_API_KEY_PLACEHOLDER constant
 // const val RAPID_API_KEY_PLACEHOLDER = "YOUR_RAPID_API_KEY"
+
+// Helper function moved directly into MainActivity.kt to avoid resolution issues
+private fun findUserInList(users: List<User>, idToMatch: String, phoneToMatch: String): User? {
+    return users.find { user -> user.id == idToMatch || user.phone == phoneToMatch }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,6 +72,15 @@ class MainActivity : ComponentActivity() {
                 val applicationContext = LocalContext.current.applicationContext
                 val navController = rememberNavController()
                 val coroutineScope = rememberCoroutineScope()
+
+                // Define states for call logs and derived user list EARLIER
+                var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
+                // Explicitly defining usersToDisplayState as State<List<User>>
+                val usersToDisplayState: State<List<User>> = remember(callLogsFromSource) {
+                    derivedStateOf {
+                        callLogsFromSource.map { it.user }.distinctBy { it.id }
+                    }
+                }
 
                 // --- Permissions Handling ---
                 val applicationContextForPermissions = applicationContext // Capture for use in remember block
@@ -126,7 +140,8 @@ class MainActivity : ComponentActivity() {
                 val ringtonePlayer = remember { RingtonePlayer(applicationContext) }
 
                 // Initialize UserStatusManager for the current user and set up lifecycle observers
-                LaunchedEffect(currentUserId) {
+                // Key updated to usersToDisplayState.value as usersToDisplayState is now State<List<User>>
+                LaunchedEffect(currentUserId, usersToDisplayState.value) {
                     if (currentUserId.isNotBlank()) {
                         userStatusManager.setCurrentUser(currentUserId)
                         userStatusManager.updateUserOnlineStatus(isOnline = true) // TODO: Pass FCM token if available
@@ -139,8 +154,13 @@ class MainActivity : ComponentActivity() {
                                 Log.d("MainActivity", "Incoming call detected: From ${callRequest.callerId} (Name: ${callRequest.callerName}) for channel ${callRequest.channelName}, CallID: ${callRequest.callId}")
                                 coroutineScope.launch(Dispatchers.Main) {
                                     ringtonePlayer.startRingtone()
+                                    val callerUser: User? = findUserInList(usersToDisplayState.value, callRequest.callerId, callRequest.callerId)
+                                    val callerProfilePicUrl = callerUser?.profilePicUrl?.let { picUrl -> Uri.encode(picUrl) } // Encode URL
                                     // Pass localIsUsa=false for incoming calls to this user (assumed non-USA based on current setup)
-                                    val route = "incoming_call_screen/${callRequest.callerId}/${callRequest.callerName ?: callRequest.callerId}/${callRequest.channelName}/${callRequest.callId}/false"
+                                    var route = "incoming_call_screen/${callRequest.callerId}/${callRequest.callerName ?: callRequest.callerId}/${callRequest.channelName}/${callRequest.callId}/false"
+                                    if (callerProfilePicUrl != null) {
+                                        route += "?callerProfilePicUrl=$callerProfilePicUrl"
+                                    }
                                     navController.navigate(route)
                                 }
                             },
@@ -245,47 +265,13 @@ class MainActivity : ComponentActivity() {
 
                 // Duplicate permission handling block removed. The correct one is earlier in the code.
 
-                val demoUsers = listOf(
-                    User("demouser1", "Demo User One", "01234567890", null),
-                    User("demouser2", "Demo User Two", "01234567891", null),
-                    User("demouser3", "Demo User Three", "01234567892", null)
-                )
-
-                val demoCallLogsState = remember {
-                    mutableStateListOf<CallLog>().apply {
-                        val now = System.currentTimeMillis()
-                        val callTypes = listOf(CallType.INCOMING, CallType.OUTGOING, CallType.MISSED)
-                        val durations = listOf(120L, 30L, 0L, 240L, 90L)
-                        addAll(demoUsers.mapIndexed { index, user ->
-                            val callType = callTypes[index % callTypes.size]
-                            val isMissed = callType == CallType.MISSED
-                            val duration = if (isMissed) 0L else durations[index % durations.size]
-                            val callTimestamp = now - (index * 5 * 60 * 1000L) - (index * 15 * 1000L)
-                            CallLog(
-                                user = user,
-                                message = when (callType) {
-                                    CallType.INCOMING -> "Incoming Call"
-                                    CallType.OUTGOING -> "Outgoing Call"
-                                    CallType.MISSED -> "Missed Call"
-                                },
-                                callType = callType,
-                                isMissed = isMissed,
-                                formattedDateTime = android.text.format.DateFormat.format("dd MMM yyyy, h:mm a", callTimestamp).toString(),
-                                timestamp = callTimestamp,
-                                duration = duration
-                            )
-                        })
-                    }
-                }
-
                 // triggerRefresh function and callLogRefreshTrigger state are kept for ContentObserver
                 var callLogRefreshTrigger by remember { mutableIntStateOf(0) }
                 fun triggerRefresh() {
                     callLogRefreshTrigger++
                 }
 
-
-                var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
+                // var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) } // MOVED EARLIER
 
                 val callLogObserver = remember {
                     object : ContentObserver(Handler(Looper.getMainLooper())) {
@@ -333,24 +319,28 @@ class MainActivity : ComponentActivity() {
                         callLogsFromSource = logs
                         Log.d("MainActivity", "Call logs fetched. Count: ${logs.size}")
                     } else {
-                        callLogsFromSource = demoCallLogsState // Fallback to demo logs if permissions are not sufficient
-                        Log.d("MainActivity", "Not enough permissions or permission denied, using demo logs. PermissionsGranted: $permissionsGranted, HasReadCallLog: $hasReadCallLogPerm")
+                        callLogsFromSource = emptyList() // Fallback to empty list if permissions are not sufficient
+                        Log.d("MainActivity", "Not enough permissions or permission denied, using empty logs. PermissionsGranted: $permissionsGranted, HasReadCallLog: $hasReadCallLogPerm")
                     }
                 }
 
                 var userToLog by remember { mutableStateOf<User?>(null) }
                 var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
 
-                val callLogsToDisplay by remember(callLogsFromSource, demoCallLogsState) {
+                val callLogsToDisplay by remember(callLogsFromSource) {
                     derivedStateOf {
-                        if (callLogsFromSource.isNotEmpty()) callLogsFromSource else demoCallLogsState
+                        callLogsFromSource
                     }
                 }
-                val usersToDisplay by remember(callLogsFromSource, demoUsers) {
-                    derivedStateOf {
-                        if (callLogsFromSource.isNotEmpty()) callLogsFromSource.map { it.user }.distinctBy { it.id } else demoUsers
-                    }
-                }
+                // val usersToDisplay by remember(callLogsFromSource) { // MOVED EARLIER
+                //     derivedStateOf {
+                //         // If callLogsFromSource is empty, this will correctly produce an empty list of users.
+                //         callLogsFromSource.map { it.user }.distinctBy { it.id }
+                //     }
+                // }
+                // Attempt to simplify access for debugging persistent errors
+                // val currentUsers: List<User> = usersToDisplay.value // Removed this intermediate variable
+
 
                 // Assuming CallLog and CallType are now imported from ui.theme or a similar package
                 // If not, their definitions need to be present or imported.
@@ -376,13 +366,14 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable(
-                        "incoming_call_screen/{callerId}/{callerName}/{channelName}/{callId}/{localIsUsa}",
+                        "incoming_call_screen/{callerId}/{callerName}/{channelName}/{callId}/{localIsUsa}?callerProfilePicUrl={callerProfilePicUrl}",
                         arguments = listOf(
                             navArgument("callerId") { type = NavType.StringType },
                             navArgument("callerName") { type = NavType.StringType; nullable = true },
                             navArgument("channelName") { type = NavType.StringType },
                             navArgument("callId") { type = NavType.StringType },
-                            navArgument("localIsUsa") { type = NavType.BoolType; defaultValue = false } // Default for incoming call context
+                            navArgument("localIsUsa") { type = NavType.BoolType; defaultValue = false },
+                            navArgument("callerProfilePicUrl") { type = NavType.StringType; nullable = true; defaultValue = null }
                         )
                     ) { backStackEntry ->
                         val callerId = backStackEntry.arguments?.getString("callerId") ?: "Unknown"
@@ -390,12 +381,17 @@ class MainActivity : ComponentActivity() {
                         val channelName = backStackEntry.arguments?.getString("channelName") ?: ""
                         val callId = backStackEntry.arguments?.getString("callId") ?: ""
                         val localIsUsaFromNav = backStackEntry.arguments?.getBoolean("localIsUsa") ?: false
-                        val calleeUser = usersToDisplay.find { it.id == callerId || it.phone == callerId } ?: User(callerId, callerName, callerId, null)
+                        val callerProfilePicUrlFromNav = backStackEntry.arguments?.getString("callerProfilePicUrl")?.let { url -> Uri.decode(url) }
 
+                        val foundCalleeUser: User? = findUserInList(usersToDisplayState.value, callerId, callerId)
+                        val calleeUser = foundCalleeUser ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
+                        // Set userToLog for context if needed elsewhere, though IncomingCallScreen primarily uses its args
+                        userToLog = calleeUser
 
                         IncomingCallScreen(
                             callerId = callerId,
                             callerName = callerName,
+                            callerProfilePicUrl = callerProfilePicUrlFromNav, // Pass the decoded URL
                             channelName = channelName,
                             callId = callId,
                             callScreenViewModel = callScreenViewModel,
@@ -532,7 +528,7 @@ class MainActivity : ComponentActivity() {
                                     return@FavouritesScreen
                                 }
 
-                                val calleeUser = usersToDisplay.find { it.phone == calleePhoneNumber }
+                                val calleeUser = usersToDisplayState.value.find { it.phone == calleePhoneNumber }
                                     ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
                                 userToLog = calleeUser
 
@@ -591,7 +587,7 @@ class MainActivity : ComponentActivity() {
                                     return@ContactsScreen
                                 }
 
-                                val calleeUser = usersToDisplay.find { it.phone == calleePhoneNumber }
+                                val calleeUser = usersToDisplayState.value.find { it.phone == calleePhoneNumber }
                                     ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
                                 userToLog = calleeUser // Keep track of user
                                 Log.d("CallDebug", "Callee: ${calleeUser.name}, Phone: $calleePhoneNumber")
@@ -639,7 +635,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("profile/{userId}", arguments = listOf(navArgument("userId") { type = NavType.StringType })) { backStackEntry ->
                         val navigatedUserId = backStackEntry.arguments?.getString("userId") // Renamed to avoid conflict
-                        val userForProfile = if (userToLog?.id == navigatedUserId) userToLog else usersToDisplay.find { it.id == navigatedUserId }
+                        val userForProfile = if (userToLog?.id == navigatedUserId) userToLog else findUserInList(usersToDisplayState.value, navigatedUserId ?: "", navigatedUserId ?: "")
 
                         if (userForProfile != null) {
                             if (userToLog?.id != userForProfile.id) userToLog = userForProfile
@@ -655,12 +651,59 @@ class MainActivity : ComponentActivity() {
                                     }
                                     if (userToLog?.id == navigatedUserId) userToLog = userToLog?.copy(name = newName)
                                 },
-                                onProfilePicUriSelected = { uriString: String? -> // Changed to String?
-                                    profileScreenImageDisplayData = uriString
-                                    if (userToLog?.id == navigatedUserId) userToLog = userToLog?.copy(profilePicUrl = uriString)
+                                onProfilePicUriSelected = { uriString: String? ->
+                                    if (uriString != null) {
+                                        val newUri = android.net.Uri.parse(uriString)
+                                        val savedImageUri = ImageStorageHelper.saveImageToInternalStorage(applicationContext, newUri)
+                                        if (savedImageUri != null) {
+                                            val savedImageUriString = savedImageUri.toString()
+                                            profileScreenImageDisplayData = savedImageUriString // Update display data with local file URI
+
+                                            // Update userToLog
+                                            if (userToLog?.id == navigatedUserId) {
+                                                // If there was an old picture, try to delete it
+                                                ImageStorageHelper.deleteImageFromInternalStorage(userToLog?.profilePicUrl)
+                                                userToLog = userToLog?.copy(profilePicUrl = savedImageUriString)
+                                            }
+
+                                            // Update callLogsFromSource to reflect the change for persistence within the session
+                                            val updatedLogs = callLogsFromSource.map { log ->
+                                                if (log.user.id == navigatedUserId) {
+                                                    // Also attempt to delete old image if replacing for this user in logs
+                                                    if (log.user.profilePicUrl != null && log.user.profilePicUrl != savedImageUriString) {
+                                                        ImageStorageHelper.deleteImageFromInternalStorage(log.user.profilePicUrl)
+                                                    }
+                                                    log.copy(user = log.user.copy(profilePicUrl = savedImageUriString))
+                                                } else {
+                                                    log
+                                                }
+                                            }
+                                            callLogsFromSource = updatedLogs
+
+                                        } else {
+                                            Toast.makeText(applicationContext, "Failed to save image.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        // Handle case where uriString is null (e.g., user wants to remove picture)
+                                        if (userToLog?.id == navigatedUserId) {
+                                            ImageStorageHelper.deleteImageFromInternalStorage(userToLog?.profilePicUrl)
+                                            userToLog = userToLog?.copy(profilePicUrl = null)
+                                        }
+                                        profileScreenImageDisplayData = null
+                                        // Update callLogsFromSource to remove the picture
+                                        val updatedLogs = callLogsFromSource.map { log ->
+                                            if (log.user.id == navigatedUserId) {
+                                                ImageStorageHelper.deleteImageFromInternalStorage(log.user.profilePicUrl)
+                                                log.copy(user = log.user.copy(profilePicUrl = null))
+                                            } else {
+                                                log
+                                            }
+                                        }
+                                        callLogsFromSource = updatedLogs
+                                    }
                                 },
                                 onBack = {
-                                    profileScreenImageDisplayData = null
+                                    // profileScreenImageDisplayData = null // No longer strictly needed to nullify here as ProfileScreen will take from user.profilePicUrl
                                     navController.popBackStack()
                                 },
                                 onCall = { calleeUser: User ->
@@ -748,7 +791,7 @@ class MainActivity : ComponentActivity() {
                                     return@DialerScreen
                                 }
 
-                                val calleeUser = usersToDisplay.find { it.phone == calleePhoneNumber }
+                                val calleeUser = usersToDisplayState.value.find { it.phone == calleePhoneNumber }
                                     ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
                                 userToLog = calleeUser // Keep track of user
                                 Log.d("CallDebug", "Callee: ${calleeUser.name}, Phone: $calleePhoneNumber")
@@ -810,7 +853,7 @@ class MainActivity : ComponentActivity() {
                         var finalUserForCallScreen = userToLog
 
                         if (finalUserForCallScreen == null || finalUserForCallScreen.phone != numberFromNav) {
-                            val foundUser = usersToDisplay.find { it.phone == numberFromNav }
+                            val foundUser = findUserInList(usersToDisplayState.value, numberFromNav, numberFromNav) // Using helper
                             finalUserForCallScreen = foundUser ?: User(id = numberFromNav, name = numberFromNav, phone = numberFromNav, profilePicUrl = null)
                             userToLog = finalUserForCallScreen
                         }
