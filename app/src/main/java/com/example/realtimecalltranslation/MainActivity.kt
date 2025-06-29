@@ -48,7 +48,7 @@ import com.example.realtimecalltranslation.ui.theme.CallLog // Import CallLog
 import com.example.realtimecalltranslation.ui.theme.FavouritesRepository
 import com.example.realtimecalltranslation.ui.theme.getRealCallLogs // Import getRealCallLogs
 // import com.example.realtimecalltranslation.util.ChannelUtils // Unused import
-import com.example.realtimecalltranslation.util.ImageStorageHelper // Import ImageStorageHelper
+// import com.example.realtimecalltranslation.util.ImageStorageHelper // Import ImageStorageHelper - Removed as it's no longer used in MainActivity
 import com.example.realtimecalltranslation.util.RingtonePlayer // Re-adding as it's used for variable type
 import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.launch
@@ -64,6 +64,32 @@ private fun findUserInList(users: List<User>, idToMatch: String, phoneToMatch: S
 }
 
 class MainActivity : ComponentActivity() {
+
+    // State variables that might need to be updated by the callback
+    private var userToLog by mutableStateOf<User?>(null)
+    private var callLogsFromSource by mutableStateOf<List<CallLog>>(emptyList())
+    // profileScreenImageDisplayData will be removed later as it's unused.
+
+    private fun handleProfileUpdate(updatedUser: User) {
+        // Update userToLog if it's the user whose profile was changed
+        // Check against both id and phone for robustness, as user.id might be the phone number.
+        if (userToLog?.id == updatedUser.id || userToLog?.phone == updatedUser.phone) {
+            userToLog = updatedUser
+        }
+
+        // Update callLogsFromSource
+        callLogsFromSource = callLogsFromSource.map { log ->
+            // Check against both id and phone for robustness
+            if (log.user.id == updatedUser.id || log.user.phone == updatedUser.phone) {
+                log.copy(user = updatedUser)
+            } else {
+                log
+            }
+        }
+        // usersToDisplayState will automatically recompose as it's derived from callLogsFromSource
+        Log.d("MainActivity", "User profile updated in MainActivity for ${updatedUser.id} (Phone: ${updatedUser.phone}). New Pic URL: ${updatedUser.profilePicUrl}, New Name: ${updatedUser.name}")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -325,7 +351,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var userToLog by remember { mutableStateOf<User?>(null) }
-                var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) }
+                // var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) } // Removed as it's unused
 
                 val callLogsToDisplay by remember(callLogsFromSource) {
                     derivedStateOf {
@@ -438,7 +464,7 @@ class MainActivity : ComponentActivity() {
                             callLogs = callLogsToDisplay,
                             onProfile = { user ->
                                 userToLog = user
-                                profileScreenImageDisplayData = user.profilePicUrl // Will be null here
+                                // profileScreenImageDisplayData = user.profilePicUrl // Removed as variable is deleted
                                 navController.navigate("profile/${user.id}")
                             },
                             onCall = { calleeUser ->
@@ -502,7 +528,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onUserAvatar = { user -> // Same as onProfile for this version
                                 userToLog = user
-                                profileScreenImageDisplayData = user.profilePicUrl
+                                // profileScreenImageDisplayData = user.profilePicUrl // Removed as variable is deleted
                                 navController.navigate("profile/${user.id}")
                             },
                             onFavourites = { navController.navigate("favourites") },
@@ -639,71 +665,18 @@ class MainActivity : ComponentActivity() {
 
                         if (userForProfile != null) {
                             if (userToLog?.id != userForProfile.id) userToLog = userForProfile
-                            val currentImageDataSource = profileScreenImageDisplayData ?: userForProfile.profilePicUrl // Will be null
+                            // val currentImageDataSource = profileScreenImageDisplayData ?: userForProfile.profilePicUrl // Will be null -> This line is removed as ProfileScreen handles image loading.
                             // ProfileScreen is now imported from com.example.realtimecalltranslation.ui.theme
                             ProfileScreen( // No need for full package name if imported correctly
                                 user = userForProfile,
                                 callLogs = callLogsToDisplay.filter { it.user.id == userForProfile.id }, // Use userForProfile.id
-                                imageDataSource = currentImageDataSource,
-                                onNameUpdate = { newName: String -> // Explicitly typed
-                                    callLogsFromSource = callLogsFromSource.map { log ->
-                                        if (log.user.id == navigatedUserId) log.copy(user = log.user.copy(name = newName)) else log
-                                    }
-                                    if (userToLog?.id == navigatedUserId) userToLog = userToLog?.copy(name = newName)
-                                },
-                                onProfilePicUriSelected = { uriString: String? ->
-                                    if (uriString != null) {
-                                        val newUri = android.net.Uri.parse(uriString)
-                                        val savedImageUri = ImageStorageHelper.saveImageToInternalStorage(applicationContext, newUri)
-                                        if (savedImageUri != null) {
-                                            val savedImageUriString = savedImageUri.toString()
-                                            profileScreenImageDisplayData = savedImageUriString // Update display data with local file URI
-
-                                            // Update userToLog
-                                            if (userToLog?.id == navigatedUserId) {
-                                                // If there was an old picture, try to delete it
-                                                ImageStorageHelper.deleteImageFromInternalStorage(userToLog?.profilePicUrl)
-                                                userToLog = userToLog?.copy(profilePicUrl = savedImageUriString)
-                                            }
-
-                                            // Update callLogsFromSource to reflect the change for persistence within the session
-                                            val updatedLogs = callLogsFromSource.map { log ->
-                                                if (log.user.id == navigatedUserId) {
-                                                    // Also attempt to delete old image if replacing for this user in logs
-                                                    if (log.user.profilePicUrl != null && log.user.profilePicUrl != savedImageUriString) {
-                                                        ImageStorageHelper.deleteImageFromInternalStorage(log.user.profilePicUrl)
-                                                    }
-                                                    log.copy(user = log.user.copy(profilePicUrl = savedImageUriString))
-                                                } else {
-                                                    log
-                                                }
-                                            }
-                                            callLogsFromSource = updatedLogs
-
-                                        } else {
-                                            Toast.makeText(applicationContext, "Failed to save image.", Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else {
-                                        // Handle case where uriString is null (e.g., user wants to remove picture)
-                                        if (userToLog?.id == navigatedUserId) {
-                                            ImageStorageHelper.deleteImageFromInternalStorage(userToLog?.profilePicUrl)
-                                            userToLog = userToLog?.copy(profilePicUrl = null)
-                                        }
-                                        profileScreenImageDisplayData = null
-                                        // Update callLogsFromSource to remove the picture
-                                        val updatedLogs = callLogsFromSource.map { log ->
-                                            if (log.user.id == navigatedUserId) {
-                                                ImageStorageHelper.deleteImageFromInternalStorage(log.user.profilePicUrl)
-                                                log.copy(user = log.user.copy(profilePicUrl = null))
-                                            } else {
-                                                log
-                                            }
-                                        }
-                                        callLogsFromSource = updatedLogs
-                                    }
+                                // onNameUpdate is removed as ProfileScreen now handles name updates and informs via onProfileUpdated
+                                // onUserProfileUpdated (old) is removed
+                                onProfileUpdated = { updatedUserFromProfile: User -> // Explicitly typed lambda parameter
+                                    handleProfileUpdate(updatedUserFromProfile) // Call the MainActivity's new handler
                                 },
                                 onBack = {
-                                    // profileScreenImageDisplayData = null // No longer strictly needed to nullify here as ProfileScreen will take from user.profilePicUrl
+                                    // profileScreenImageDisplayData = null // This state variable will be removed entirely
                                     navController.popBackStack()
                                 },
                                 onCall = { calleeUser: User ->
