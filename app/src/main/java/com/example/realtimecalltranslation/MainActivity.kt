@@ -64,6 +64,32 @@ private fun findUserInList(users: List<User>, idToMatch: String, phoneToMatch: S
 }
 
 class MainActivity : ComponentActivity() {
+
+    // State variables that might need to be updated by the callback
+    private var userToLog by mutableStateOf<User?>(null)
+    private var callLogsFromSource by mutableStateOf<List<CallLog>>(emptyList())
+    // profileScreenImageDisplayData might also need update, but ProfileScreen will handle its display primarily.
+    // Let's focus on userToLog and callLogsFromSource for data integrity across screens.
+
+    private fun onUserProfileUpdated(userId: String, newProfilePicUrl: String?) {
+        // Update userToLog if it's the user whose profile was changed
+        if (userToLog?.id == userId || userToLog?.phone == userId) { // Checking against phone as well, as ID might be phone
+            userToLog = userToLog?.copy(profilePicUrl = newProfilePicUrl)
+        }
+
+        // Update callLogsFromSource
+        callLogsFromSource = callLogsFromSource.map { log ->
+            // Assuming user.id or user.phone can be the identifier passed as userId
+            if (log.user.id == userId || log.user.phone == userId) {
+                log.copy(user = log.user.copy(profilePicUrl = newProfilePicUrl))
+            } else {
+                log
+            }
+        }
+        // usersToDisplayState will automatically recompose as it's derived from callLogsFromSource
+        Log.d("MainActivity", "User profile updated in MainActivity for $userId. New Pic URL: $newProfilePicUrl")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -639,68 +665,29 @@ class MainActivity : ComponentActivity() {
 
                         if (userForProfile != null) {
                             if (userToLog?.id != userForProfile.id) userToLog = userForProfile
-                            val currentImageDataSource = profileScreenImageDisplayData ?: userForProfile.profilePicUrl // Will be null
+                            // val currentImageDataSource = profileScreenImageDisplayData ?: userForProfile.profilePicUrl // Will be null -> This line is removed as ProfileScreen handles image loading.
                             // ProfileScreen is now imported from com.example.realtimecalltranslation.ui.theme
                             ProfileScreen( // No need for full package name if imported correctly
                                 user = userForProfile,
                                 callLogs = callLogsToDisplay.filter { it.user.id == userForProfile.id }, // Use userForProfile.id
-                                imageDataSource = currentImageDataSource,
+                                // imageDataSource = currentImageDataSource, // Removed: ProfileScreen will use user.profilePicUrl and load via Coil/Firebase
                                 onNameUpdate = { newName: String -> // Explicitly typed
+                                    // This logic might also move to ProfileScreen if it updates name directly in Firebase
+                                    // For now, keeping it here to update local states.
+                                    // Consider a more generic onUserUpdated callback if name update also happens in ProfileScreen.
                                     callLogsFromSource = callLogsFromSource.map { log ->
                                         if (log.user.id == navigatedUserId) log.copy(user = log.user.copy(name = newName)) else log
                                     }
                                     if (userToLog?.id == navigatedUserId) userToLog = userToLog?.copy(name = newName)
+
+                                    // If ProfileScreen updates name in Firebase, it might also call onUserProfileUpdated
+                                    // with the new name, if the callback is designed to handle more than just pic updates.
+                                    // For now, onUserProfileUpdated is specific to pic URL.
                                 },
-                                onProfilePicUriSelected = { uriString: String? ->
-                                    if (uriString != null) {
-                                        val newUri = android.net.Uri.parse(uriString)
-                                        val savedImageUri = ImageStorageHelper.saveImageToInternalStorage(applicationContext, newUri)
-                                        if (savedImageUri != null) {
-                                            val savedImageUriString = savedImageUri.toString()
-                                            profileScreenImageDisplayData = savedImageUriString // Update display data with local file URI
-
-                                            // Update userToLog
-                                            if (userToLog?.id == navigatedUserId) {
-                                                // If there was an old picture, try to delete it
-                                                ImageStorageHelper.deleteImageFromInternalStorage(userToLog?.profilePicUrl)
-                                                userToLog = userToLog?.copy(profilePicUrl = savedImageUriString)
-                                            }
-
-                                            // Update callLogsFromSource to reflect the change for persistence within the session
-                                            val updatedLogs = callLogsFromSource.map { log ->
-                                                if (log.user.id == navigatedUserId) {
-                                                    // Also attempt to delete old image if replacing for this user in logs
-                                                    if (log.user.profilePicUrl != null && log.user.profilePicUrl != savedImageUriString) {
-                                                        ImageStorageHelper.deleteImageFromInternalStorage(log.user.profilePicUrl)
-                                                    }
-                                                    log.copy(user = log.user.copy(profilePicUrl = savedImageUriString))
-                                                } else {
-                                                    log
-                                                }
-                                            }
-                                            callLogsFromSource = updatedLogs
-
-                                        } else {
-                                            Toast.makeText(applicationContext, "Failed to save image.", Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else {
-                                        // Handle case where uriString is null (e.g., user wants to remove picture)
-                                        if (userToLog?.id == navigatedUserId) {
-                                            ImageStorageHelper.deleteImageFromInternalStorage(userToLog?.profilePicUrl)
-                                            userToLog = userToLog?.copy(profilePicUrl = null)
-                                        }
-                                        profileScreenImageDisplayData = null
-                                        // Update callLogsFromSource to remove the picture
-                                        val updatedLogs = callLogsFromSource.map { log ->
-                                            if (log.user.id == navigatedUserId) {
-                                                ImageStorageHelper.deleteImageFromInternalStorage(log.user.profilePicUrl)
-                                                log.copy(user = log.user.copy(profilePicUrl = null))
-                                            } else {
-                                                log
-                                            }
-                                        }
-                                        callLogsFromSource = updatedLogs
-                                    }
+                                // onProfilePicUriSelected is removed as ProfileScreen now handles selection and Firebase upload.
+                                // Instead, ProfileScreen will call onUserProfileUpdated after a successful Firebase update.
+                                onUserProfileUpdated = { userId, newPicUrl ->
+                                    onUserProfileUpdated(userId, newPicUrl) // Call the MainActivity's handler
                                 },
                                 onBack = {
                                     // profileScreenImageDisplayData = null // No longer strictly needed to nullify here as ProfileScreen will take from user.profilePicUrl
