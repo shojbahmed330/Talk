@@ -65,20 +65,43 @@ private fun findUserInList(users: List<User>, idToMatch: String, phoneToMatch: S
 
 class MainActivity : ComponentActivity() {
 
-    // State variables that might need to be updated by the callback
-    private var userToLog by mutableStateOf<User?>(null)
-    private var callLogsFromSource by mutableStateOf<List<CallLog>>(emptyList())
-    // profileScreenImageDisplayData will be removed later as it's unused.
+    // State variables are defined inside onCreate using remember for proper lifecycle management with Compose.
+    // private var userToLog by mutableStateOf<User?>(null) // Moved into setContent
+    // private var callLogsFromSource by mutableStateOf<List<CallLog>>(emptyList()) // Moved into setContent
+
+    // handleProfileUpdate will be defined inside setContent or receive states as parameters.
+    // For simplicity with current structure, we'll ensure it's defined in a scope with access to the states.
+    // The previous approach of making them class members was correct if handleProfileUpdate is a class method.
+    // Let's stick to defining states within setContent and ensure handleProfileUpdate can access them.
+    // This means handleProfileUpdate itself might need to be passed references or be defined within setContent.
+
+    // Given ProfileScreen is called within setContent, and its lambda calls handleProfileUpdate,
+    // handleProfileUpdate needs to be accessible. If it's a class method, it needs to operate on class member states.
+
+    // Correcting the structure: States will be in setContent. handleProfileUpdate will be a lambda or local fun.
+    // However, the error log implies ProfileScreen call is at line 674, which is deep inside setContent.
+    // The `handleProfileUpdate` function at line 71 IS a class member.
+    // The states `userToLog` (line 352) and `callLogsFromSource` (line 104) ARE `remember`ed inside `setContent`.
+    // This is a mismatch.
+
+    // SOLUTION: Make userToLog and callLogsFromSource class members as originally intended in the fix.
+    // Then, ensure they are correctly updated by the class method handleProfileUpdate.
+    // The `remember` calls inside `setContent` for these should be removed if they are class members.
+
+    // Re-affirming: userToLog and callLogsFromSource should be MainActivity class members.
+    private var userToLogState by mutableStateOf<User?>(null) // Renaming to avoid conflict with local remember
+    private var callLogsFromSourceState by mutableStateOf<List<CallLog>>(emptyList())
+
 
     private fun handleProfileUpdate(updatedUser: User) {
-        // Update userToLog if it's the user whose profile was changed
+        // Update userToLogState if it's the user whose profile was changed
         // Check against both id and phone for robustness, as user.id might be the phone number.
-        if (userToLog?.id == updatedUser.id || userToLog?.phone == updatedUser.phone) {
-            userToLog = updatedUser
+        if (userToLogState?.id == updatedUser.id || userToLogState?.phone == updatedUser.phone) {
+            userToLogState = updatedUser
         }
 
-        // Update callLogsFromSource
-        callLogsFromSource = callLogsFromSource.map { log ->
+        // Update callLogsFromSourceState
+        callLogsFromSourceState = callLogsFromSourceState.map { log ->
             // Check against both id and phone for robustness
             if (log.user.id == updatedUser.id || log.user.phone == updatedUser.phone) {
                 log.copy(user = updatedUser)
@@ -86,7 +109,7 @@ class MainActivity : ComponentActivity() {
                 log
             }
         }
-        // usersToDisplayState will automatically recompose as it's derived from callLogsFromSource
+        // usersToDisplayState will automatically recompose as it's derived from callLogsFromSourceState
         Log.d("MainActivity", "User profile updated in MainActivity for ${updatedUser.id} (Phone: ${updatedUser.phone}). New Pic URL: ${updatedUser.profilePicUrl}, New Name: ${updatedUser.name}")
     }
 
@@ -99,12 +122,13 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val coroutineScope = rememberCoroutineScope()
 
-                // Define states for call logs and derived user list EARLIER
-                var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) }
-                // Explicitly defining usersToDisplayState as State<List<User>>
-                val usersToDisplayState: State<List<User>> = remember(callLogsFromSource) {
+                // Using class member states: userToLogState and callLogsFromSourceState
+                // The local `remember` for these are removed.
+                // var callLogsFromSource by remember { mutableStateOf<List<CallLog>>(emptyList()) } // Removed
+                // Explicitly defining usersToDisplayState as State<List<User>>, derived from the class member state
+                val usersToDisplayState: State<List<User>> = remember(callLogsFromSourceState) {
                     derivedStateOf {
-                        callLogsFromSource.map { it.user }.distinctBy { it.id }
+                        callLogsFromSourceState.map { it.user }.distinctBy { it.id }
                     }
                 }
 
@@ -342,23 +366,23 @@ class MainActivity : ComponentActivity() {
                             // getRealCallLogs uses READ_CONTACTS internally if available (checked by hasReadContactsPerm implicitly by the function)
                             getRealCallLogs(applicationContext)
                         }
-                        callLogsFromSource = logs
+                        callLogsFromSourceState = logs // Update class member state
                         Log.d("MainActivity", "Call logs fetched. Count: ${logs.size}")
                     } else {
-                        callLogsFromSource = emptyList() // Fallback to empty list if permissions are not sufficient
+                        callLogsFromSourceState = emptyList() // Update class member state
                         Log.d("MainActivity", "Not enough permissions or permission denied, using empty logs. PermissionsGranted: $permissionsGranted, HasReadCallLog: $hasReadCallLogPerm")
                     }
                 }
 
-                var userToLog by remember { mutableStateOf<User?>(null) }
+                // var userToLog by remember { mutableStateOf<User?>(null) } // Removed, using userToLogState (class member)
                 // var profileScreenImageDisplayData by remember { mutableStateOf<Any?>(null) } // Removed as it's unused
 
-                val callLogsToDisplay by remember(callLogsFromSource) {
+                val callLogsToDisplay by remember(callLogsFromSourceState) { // Depends on class member state
                     derivedStateOf {
                         callLogsFromSource
                     }
                 }
-                // val usersToDisplay by remember(callLogsFromSource) { // MOVED EARLIER
+                // val usersToDisplay by remember(callLogsFromSourceState) { // MOVED EARLIER // Depends on class member state
                 //     derivedStateOf {
                 //         // If callLogsFromSource is empty, this will correctly produce an empty list of users.
                 //         callLogsFromSource.map { it.user }.distinctBy { it.id }
@@ -411,8 +435,8 @@ class MainActivity : ComponentActivity() {
 
                         val foundCalleeUser: User? = findUserInList(usersToDisplayState.value, callerId, callerId)
                         val calleeUser = foundCalleeUser ?: User(callerId, callerName, callerId, callerProfilePicUrlFromNav)
-                        // Set userToLog for context if needed elsewhere, though IncomingCallScreen primarily uses its args
-                        userToLog = calleeUser
+                        // Set userToLogState for context if needed elsewhere, though IncomingCallScreen primarily uses its args
+                        userToLogState = calleeUser
 
                         IncomingCallScreen(
                             callerId = callerId,
@@ -463,8 +487,8 @@ class MainActivity : ComponentActivity() {
                         CallHistoryScreen(
                             callLogs = callLogsToDisplay,
                             onProfile = { user ->
-                                userToLog = user
-                                profileScreenImageDisplayData = user.profilePicUrl // Will be null here
+                                userToLogState = user // Update class member state
+                                // profileScreenImageDisplayData = user.profilePicUrl // Removed as variable is deleted
                                 navController.navigate("profile/${user.id}")
                             },
                             onCall = { calleeUser ->
@@ -483,7 +507,7 @@ class MainActivity : ComponentActivity() {
                                     return@CallHistoryScreen
                                 }
 
-                                userToLog = calleeUser // Keep track of user for CallScreen
+                                userToLogState = calleeUser // Update class member state // Keep track of user for CallScreen
                                 val calleePhoneNumber = calleeUser.phone
                                 Log.d("CallDebug", "Callee: ${calleeUser.name}, Phone: $calleePhoneNumber")
 
@@ -527,8 +551,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onUserAvatar = { user -> // Same as onProfile for this version
-                                userToLog = user
-                                profileScreenImageDisplayData = user.profilePicUrl
+                                userToLogState = user // Update class member state
+                                // profileScreenImageDisplayData = user.profilePicUrl // Removed as variable is deleted
                                 navController.navigate("profile/${user.id}")
                             },
                             onFavourites = { navController.navigate("favourites") },
@@ -556,7 +580,7 @@ class MainActivity : ComponentActivity() {
 
                                 val calleeUser = usersToDisplayState.value.find { it.phone == calleePhoneNumber }
                                     ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
-                                userToLog = calleeUser
+                                userToLogState = calleeUser // Update class member state
 
                                 coroutineScope.launch {
                                     var statusListener: ValueEventListener? = null
@@ -615,7 +639,7 @@ class MainActivity : ComponentActivity() {
 
                                 val calleeUser = usersToDisplayState.value.find { it.phone == calleePhoneNumber }
                                     ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
-                                userToLog = calleeUser // Keep track of user
+                                userToLogState = calleeUser // Update class member state // Keep track of user
                                 Log.d("CallDebug", "Callee: ${calleeUser.name}, Phone: $calleePhoneNumber")
 
                                 coroutineScope.launch {
@@ -661,10 +685,10 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("profile/{userId}", arguments = listOf(navArgument("userId") { type = NavType.StringType })) { backStackEntry ->
                         val navigatedUserId = backStackEntry.arguments?.getString("userId") // Renamed to avoid conflict
-                        val userForProfile = if (userToLog?.id == navigatedUserId) userToLog else findUserInList(usersToDisplayState.value, navigatedUserId ?: "", navigatedUserId ?: "")
+                        val userForProfile = if (userToLogState?.id == navigatedUserId) userToLogState else findUserInList(usersToDisplayState.value, navigatedUserId ?: "", navigatedUserId ?: "")
 
                         if (userForProfile != null) {
-                            if (userToLog?.id != userForProfile.id) userToLog = userForProfile
+                            if (userToLogState?.id != userForProfile.id) userToLogState = userForProfile // Update class member state
                             // val currentImageDataSource = profileScreenImageDisplayData ?: userForProfile.profilePicUrl // Will be null -> This line is removed as ProfileScreen handles image loading.
                             // ProfileScreen is now imported from com.example.realtimecalltranslation.ui.theme
                             ProfileScreen( // No need for full package name if imported correctly
@@ -695,7 +719,7 @@ class MainActivity : ComponentActivity() {
                                         return@ProfileScreen
                                     }
 
-                                    userToLog = calleeUser // Keep track of user
+                                    userToLogState = calleeUser // Update class member state // Keep track of user
                                     val calleePhoneNumber = calleeUser.phone
                                     Log.d("CallDebug", "Callee: ${calleeUser.name}, Phone: $calleePhoneNumber")
 
@@ -766,7 +790,7 @@ class MainActivity : ComponentActivity() {
 
                                 val calleeUser = usersToDisplayState.value.find { it.phone == calleePhoneNumber }
                                     ?: User(id = calleePhoneNumber, name = calleePhoneNumber, phone = calleePhoneNumber, profilePicUrl = null)
-                                userToLog = calleeUser // Keep track of user
+                                userToLogState = calleeUser // Update class member state // Keep track of user
                                 Log.d("CallDebug", "Callee: ${calleeUser.name}, Phone: $calleePhoneNumber")
 
                                 coroutineScope.launch {
@@ -823,12 +847,12 @@ class MainActivity : ComponentActivity() {
                         val remoteUserIdFromNav = backStackEntry.arguments?.getString("remoteUserId")
                         val localIsUsaFromNav = backStackEntry.arguments?.getBoolean("localIsUsa") ?: false
 
-                        var finalUserForCallScreen = userToLog
+                        var finalUserForCallScreen = userToLogState // Use class member state
 
                         if (finalUserForCallScreen == null || finalUserForCallScreen.phone != numberFromNav) {
                             val foundUser = findUserInList(usersToDisplayState.value, numberFromNav, numberFromNav) // Using helper
                             finalUserForCallScreen = foundUser ?: User(id = numberFromNav, name = numberFromNav, phone = numberFromNav, profilePicUrl = null)
-                            userToLog = finalUserForCallScreen
+                            userToLogState = finalUserForCallScreen // Update class member state
                         }
 
                         if (finalUserForCallScreen != null) {
